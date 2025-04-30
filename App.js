@@ -1,0 +1,666 @@
+// Minimalist Time Logger App
+const { useState, useEffect, useRef } = React;
+
+const API_URL = '';
+
+function App() {
+    const [projects, setProjects] = useState([]);
+    const [newProject, setNewProject] = useState('');
+    const [_, forceUpdate] = useState(0); // for timer re-render
+    const timerRef = useRef();
+    const fileInputRef = useRef();
+    const [loading, setLoading] = useState(true);
+    const [manualIdx, setManualIdx] = useState(null); // index of project for manual entry
+    const [manualForm, setManualForm] = useState({ date: '', start: '', end: '' });
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [tab, setTab] = useState('log');
+    const [reportMonth, setReportMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
+
+    // Chart.js refs
+    const daysChartRef = useRef();
+    const projectsChartRef = useRef();
+
+    // 1. Add state for archived section collapse
+    const [archivedOpen, setArchivedOpen] = useState(false);
+
+    // Load data from backend on mount
+    useEffect(() => {
+        fetch(API_URL + '/api/data')
+            .then(res => res.json())
+            .then(data => {
+                setProjects(data.projects || []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
+
+    // Save data to backend on projects change
+    useEffect(() => {
+        if (!loading) {
+            fetch(API_URL + '/api/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projects })
+            });
+        }
+    }, [projects, loading]);
+
+    useEffect(() => {
+        timerRef.current = setInterval(() => forceUpdate(x => x + 1), 1000);
+        return () => clearInterval(timerRef.current);
+    }, []);
+
+    // Render charts when reporting tab, month, or data changes
+    useEffect(() => {
+        if (tab !== 'report') return;
+        const daysCtx = document.getElementById('days-bar-chart');
+        const projectsCtx = document.getElementById('projects-bar-chart');
+        if (!daysCtx || !projectsCtx) return;
+        if (daysChartRef.current) daysChartRef.current.destroy();
+        if (projectsChartRef.current) projectsChartRef.current.destroy();
+        const days = getMonthData().days;
+        const dayLabels = Object.keys(days).sort();
+        const dayData = dayLabels.map(d => +(days[d] / 3600).toFixed(2)); // hours
+        daysChartRef.current = new window.Chart(daysCtx, {
+            type: 'bar',
+            data: {
+                labels: dayLabels,
+                datasets: [{
+                    label: 'Hours per day',
+                    data: dayData,
+                    backgroundColor: '#2563eb',
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                layout: { padding: { top: 32 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false },
+                    datalabels: {
+                        display: true,
+                        color: '#222',
+                        anchor: 'end',
+                        align: 'end',
+                        font: { weight: 'bold' },
+                        formatter: (value) => value + 'h'
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Day' } },
+                    y: { title: { display: true, text: 'Hours' }, beginAtZero: true }
+                },
+                responsive: true,
+                maintainAspectRatio: false,
+            },
+            plugins: window.ChartDataLabels ? [window.ChartDataLabels] : []
+        });
+        // Projects bar chart
+        const projects = getMonthData().projectTotals;
+        let projectLabels = Object.keys(projects);
+        // Sort projects by total hours descending
+        projectLabels = projectLabels.sort((a, b) => (projects[b] || 0) - (projects[a] || 0));
+        const projectData = projectLabels.map(p => +(projects[p] / 3600).toFixed(2)); // hours
+        projectsChartRef.current = new window.Chart(projectsCtx, {
+            type: 'bar',
+            data: {
+                labels: projectLabels,
+                datasets: [{
+                    label: 'Hours per project',
+                    data: projectData,
+                    backgroundColor: '#10b981',
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                layout: { padding: { right: 48 } },
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false },
+                    datalabels: {
+                        display: true,
+                        color: '#222',
+                        anchor: 'end',
+                        align: 'end',
+                        font: { weight: 'bold' },
+                        formatter: (value) => value + 'h'
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Hours' }, beginAtZero: true },
+                    y: { title: { display: true, text: 'Project' } }
+                },
+                responsive: true,
+                maintainAspectRatio: false,
+            },
+            plugins: window.ChartDataLabels ? [window.ChartDataLabels] : []
+        });
+        return () => {
+            if (daysChartRef.current) daysChartRef.current.destroy();
+            if (projectsChartRef.current) projectsChartRef.current.destroy();
+        };
+    }, [tab, reportMonth, projects]);
+
+    // 2. Update addProject to include archived: false
+    function addProject(e) {
+        e.preventDefault();
+        if (!newProject.trim()) return;
+        setProjects([
+            ...projects,
+            { name: newProject.trim(), logs: [], running: false, startedAt: null, archived: false }
+        ]);
+        setNewProject('');
+    }
+
+    function startTimer(idx) {
+        setProjects(projects =>
+            projects.map((p, i) =>
+                i === idx
+                    ? { ...p, running: true, startedAt: Date.now() }
+                    : p
+            )
+        );
+    }
+
+    function stopTimer(idx) {
+        setProjects(projects =>
+            projects.map((p, i) => {
+                if (i !== idx || !p.running) return p;
+                const now = Date.now();
+                const duration = Math.floor((now - p.startedAt) / 1000);
+                return {
+                    ...p,
+                    running: false,
+                    startedAt: null,
+                    logs: [
+                        { start: p.startedAt, end: now, duration },
+                        ...p.logs
+                    ]
+                };
+            })
+        );
+    }
+
+    function formatDuration(sec) {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        return [h, m, s]
+            .map(v => v.toString().padStart(2, '0'))
+            .join(':');
+    }
+
+    // Format duration as HH:MM (no seconds)
+    function formatDurationHM(sec) {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return [h, m].map(v => v.toString().padStart(2, '0')).join('h');
+    }
+
+    // Export as JSON (download from backend)
+    function exportJSON() {
+        window.open(API_URL + '/api/export/json', '_blank');
+    }
+
+    // Export as CSV (download from backend)
+    function exportCSV() {
+        window.open(API_URL + '/api/export/csv', '_blank');
+    }
+
+    // Import from JSON (local file, then POST to backend)
+    function importJSON(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = evt => {
+            try {
+                const data = JSON.parse(evt.target.result);
+                if (data.projects && Array.isArray(data.projects)) {
+                    setProjects(data.projects);
+                } else {
+                    alert('Invalid file format.');
+                }
+            } catch {
+                alert('Could not parse file.');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    }
+
+    function openManualForm(idx) {
+        setManualIdx(idx);
+        setManualForm({ date: new Date().toISOString().slice(0, 10), start: '', end: '' });
+    }
+
+    function closeManualForm() {
+        setManualIdx(null);
+        setManualForm({ date: '', start: '', end: '' });
+    }
+
+    function handleManualChange(e) {
+        setManualForm(f => ({ ...f, [e.target.name]: e.target.value }));
+    }
+
+    function submitManualEntry(e) {
+        e.preventDefault();
+        const { date, start, end } = manualForm;
+        if (!date || !start || !end) return;
+        const startDate = new Date(`${date}T${start}`);
+        const endDate = new Date(`${date}T${end}`);
+        if (isNaN(startDate) || isNaN(endDate) || endDate <= startDate) {
+            alert('Invalid time range.');
+            return;
+        }
+        const duration = Math.floor((endDate - startDate) / 1000);
+        setProjects(projects =>
+            projects.map((p, i) =>
+                i === manualIdx
+                    ? {
+                        ...p,
+                        logs: [
+                            { start: startDate.getTime(), end: endDate.getTime(), duration },
+                            ...p.logs
+                        ]
+                    }
+                    : p
+            )
+        );
+        closeManualForm();
+    }
+
+    function deleteProject(idx) {
+        if (window.confirm('Are you sure you want to delete this project and all its logs?')) {
+            setProjects(projects => projects.filter((_, i) => i !== idx));
+        }
+    }
+
+    function deleteLog(projectIdx, logIdx) {
+        // Delete immediately, no confirmation
+        setProjects(projects =>
+            projects.map((p, i) =>
+                i === projectIdx
+                    ? { ...p, logs: p.logs.filter((_, j) => j !== logIdx) }
+                    : p
+            )
+        );
+    }
+
+    function toggleMenu() { setMenuOpen(open => !open); }
+    function closeMenu() { setMenuOpen(false); }
+
+    function changeMonth(offset) {
+        const [year, month] = reportMonth.split('-').map(Number);
+        const d = new Date(year, month - 1 + offset, 1);
+        setReportMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    // Calculate reporting data
+    function getMonthData() {
+        const [year, month] = reportMonth.split('-').map(Number);
+        const start = new Date(year, month - 1, 1).getTime();
+        const end = new Date(year, month, 1).getTime();
+        let totalSeconds = 0;
+        const projectsSet = new Set();
+        const days = {};
+        const projectTotals = {};
+        projects.forEach(p => {
+            p.logs.forEach(log => {
+                if (log.start >= start && log.start < end) {
+                    totalSeconds += log.duration;
+                    projectsSet.add(p.name);
+                    // Per day
+                    const day = new Date(log.start).toISOString().slice(0, 10);
+                    days[day] = (days[day] || 0) + log.duration;
+                    // Per project
+                    projectTotals[p.name] = (projectTotals[p.name] || 0) + log.duration;
+                }
+            });
+        });
+        return {
+            totalSeconds,
+            projectCount: projectsSet.size,
+            days,
+            projectTotals
+        };
+    }
+    const monthData = getMonthData();
+
+    // Export PDF for reporting tab
+    async function exportPDF() {
+        const jsPDF = window.jspdf.jsPDF;
+        const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+        // Title
+        doc.setFontSize(20);
+        doc.text('Monthly Report', 40, 50);
+        // Month
+        doc.setFontSize(14);
+        doc.text(new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' }), 40, 80);
+        // Indicators
+        doc.setFontSize(12);
+        doc.text('Total time this month: ' + formatDurationHM(monthData.totalSeconds), 40, 110);
+        doc.text('Projects worked on: ' + monthData.projectCount, 40, 130);
+        // Charts
+        // Use html2canvas to render the chart canvases
+        const daysCanvas = document.getElementById('days-bar-chart');
+        const projectsCanvas = document.getElementById('projects-bar-chart');
+        if (daysCanvas) {
+            const imgData = await window.html2canvas(daysCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
+            doc.text('Time per day', 40, 170);
+            doc.addImage(imgData, 'PNG', 40, 180, 480, 180);
+        }
+        if (projectsCanvas) {
+            const imgData2 = await window.html2canvas(projectsCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
+            doc.text('Time per project', 40, 380);
+            doc.addImage(imgData2, 'PNG', 40, 390, 480, 180);
+        }
+        doc.save('monthly_report.pdf');
+    }
+
+    // Helper to check for overlapping logs in a list
+    function findOverlappingLogs(projects) {
+        const allLogs = [];
+        projects.forEach((p) => {
+            (p.logs || []).forEach(log => {
+                allLogs.push({ ...log, project: p.name });
+            });
+        });
+        allLogs.sort((a, b) => a.start - b.start);
+        const overlaps = [];
+        for (let i = 0; i < allLogs.length; i++) {
+            for (let j = i + 1; j < allLogs.length; j++) {
+                if (allLogs[j].start >= allLogs[i].end) break;
+                if (allLogs[i].project !== allLogs[j].project) {
+                    overlaps.push({
+                        first: allLogs[i],
+                        second: allLogs[j]
+                    });
+                }
+            }
+        }
+        return overlaps;
+    }
+
+    const overlapping = findOverlappingLogs(projects);
+
+    // 3. Archive/unarchive functions
+    function archiveProject(idx) {
+        setProjects(projects =>
+            projects.map((p, i) => i === idx ? { ...p, archived: true, running: false, startedAt: null } : p)
+        );
+    }
+    function unarchiveProject(idx) {
+        setProjects(projects =>
+            projects.map((p, i) => i === idx ? { ...p, archived: false } : p)
+        );
+    }
+
+    // 4. In the log tab UI, split projects into active and archived
+    const activeProjects = projects.filter(p => !p.archived);
+    const archivedProjects = projects.filter(p => p.archived);
+
+    return (
+        React.createElement('div', { className: 'container' },
+            React.createElement('div', { className: 'header-row' },
+                React.createElement('div', {
+                    className: menuOpen ? 'burger-menu open' : 'burger-menu',
+                    tabIndex: 0,
+                    onBlur: () => setTimeout(closeMenu, 120)
+                },
+                    React.createElement('button', {
+                        className: 'burger-icon',
+                        onClick: toggleMenu,
+                        'aria-label': 'Open menu',
+                        type: 'button'
+                    },
+                        React.createElement('span'),
+                        React.createElement('span'),
+                        React.createElement('span')
+                    ),
+                    React.createElement('div', { className: 'burger-dropdown' },
+                        React.createElement('button', { onClick: () => { exportJSON(); closeMenu(); } }, 'Export JSON'),
+                        React.createElement('label', null,
+                            'Import JSON',
+                            React.createElement('input', {
+                                type: 'file',
+                                accept: '.json,application/json',
+                                style: { display: 'none' },
+                                ref: fileInputRef,
+                                onChange: e => { importJSON(e); closeMenu(); }
+                            })
+                        ),
+                        React.createElement('button', { onClick: () => { exportCSV(); closeMenu(); } }, 'Export CSV')
+                    )
+                ),
+                React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger")
+            ),
+            // Tab navigation
+            React.createElement('div', { className: 'tab-bar' },
+                ['log', 'report'].map(t =>
+                    React.createElement('div', {
+                        key: t,
+                        className: 'tab-btn' + (tab === t ? ' active' : ''),
+                        onClick: () => setTab(t)
+                    }, t === 'log' ? 'Log' : 'Reporting')
+                )
+            ),
+            tab === 'log' && (
+                React.createElement('div', null,
+                    overlapping.length > 0 && React.createElement('div', {
+                        style: {
+                            background: '#fffbe6',
+                            border: '1.5px solid #facc15',
+                            color: '#b45309',
+                            borderRadius: 8,
+                            padding: '14px 18px',
+                            marginBottom: 18,
+                            fontSize: '1rem',
+                            fontWeight: 500
+                        }
+                    },
+                        'Warning: Overlapping time entries detected!',
+                        React.createElement('ul', { style: { margin: '10px 0 0 0', paddingLeft: 18, fontWeight: 400, fontSize: '0.98rem' } },
+                            overlapping.map((o, i) =>
+                                React.createElement('li', { key: i },
+                                    `Project: ${o.first.project} — ` +
+                                    `${new Date(o.first.start).toLocaleString()} - ${new Date(o.first.end).toLocaleTimeString()} overlaps with ` +
+                                    `Project: ${o.second.project} — ` +
+                                    `${new Date(o.second.start).toLocaleString()} - ${new Date(o.second.end).toLocaleTimeString()}`
+                                )
+                            )
+                        )
+                    ),
+                    React.createElement('form', { onSubmit: addProject, className: 'add-form' },
+                        React.createElement('input', {
+                            value: newProject,
+                            onChange: e => setNewProject(e.target.value),
+                            placeholder: 'Add project...',
+                            className: 'input'
+                        }),
+                        React.createElement('button', { type: 'submit', className: 'btn' }, 'Add')
+                    ),
+                    loading
+                        ? React.createElement('p', { className: 'empty' }, 'Loading...')
+                        : activeProjects.length === 0 && React.createElement('p', { className: 'empty' }, 'No projects yet.'),
+                    activeProjects.length > 0 && activeProjects.map((p, idx) =>
+                        React.createElement('div', { key: idx, className: 'project' },
+                            React.createElement('div', { className: 'project-header' },
+                                React.createElement('span', { className: 'project-name' }, p.name),
+                                React.createElement('button', {
+                                    className: 'btn play-btn' + (p.running ? ' running' : ''),
+                                    onClick: p.running ? () => stopTimer(projects.indexOf(p)) : () => startTimer(projects.indexOf(p)),
+                                    title: p.running ? 'Stop timer' : 'Start timer'
+                                },
+                                    p.running
+                                        ? formatDuration(Math.floor((Date.now() - p.startedAt) / 1000))
+                                        : React.createElement('i', { className: 'bi bi-play-fill', style: { color: '#1a7f4f' } })
+                                ),
+                                React.createElement('button', {
+                                    className: 'btn add-entry',
+                                    onClick: () => openManualForm(projects.indexOf(p)),
+                                    title: 'Add manual entry'
+                                }, 'Add Entry'),
+                                React.createElement('button', {
+                                    className: 'btn archive-btn-square',
+                                    onClick: () => archiveProject(projects.indexOf(p)),
+                                    title: 'Archive project',
+                                    style: { marginLeft: 4 }
+                                },
+                                    React.createElement('i', { className: 'bi bi-archive', style: { fontSize: '20px', color: '#374151' } })
+                                ),
+                                React.createElement('button', {
+                                    className: 'btn delete-btn-square',
+                                    onClick: () => deleteProject(projects.indexOf(p)),
+                                    title: 'Delete project',
+                                    style: { marginLeft: 4 }
+                                },
+                                    React.createElement('i', { className: 'bi bi-trash', style: { fontSize: '20px', color: '#374151' } })
+                                )
+                            ),
+                            manualIdx === projects.indexOf(p) && React.createElement('form', {
+                                onSubmit: submitManualEntry,
+                                style: { display: 'flex', gap: 6, margin: '8px 0', alignItems: 'center', justifyContent: 'center' }
+                            },
+                                React.createElement('input', {
+                                    type: 'date',
+                                    name: 'date',
+                                    value: manualForm.date,
+                                    onChange: handleManualChange,
+                                    required: true,
+                                    style: { padding: 4 }
+                                }),
+                                React.createElement('input', {
+                                    type: 'time',
+                                    name: 'start',
+                                    value: manualForm.start,
+                                    onChange: handleManualChange,
+                                    required: true,
+                                    style: { padding: 4 }
+                                }),
+                                React.createElement('input', {
+                                    type: 'time',
+                                    name: 'end',
+                                    value: manualForm.end,
+                                    onChange: handleManualChange,
+                                    required: true,
+                                    style: { padding: 4 }
+                                }),
+                                React.createElement('button', { type: 'submit', className: 'btn' }, 'Save'),
+                                React.createElement('button', { type: 'button', className: 'btn', onClick: closeManualForm }, 'Cancel')
+                            ),
+                            p.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
+                                p.logs.map((log, i) =>
+                                    React.createElement('li', { key: i, className: 'log-item indented' },
+                                        React.createElement('button', {
+                                            className: 'delete-log-btn',
+                                            title: 'Delete entry',
+                                            onClick: () => deleteLog(projects.indexOf(p), i)
+                                        }, '\u00D7'),
+                                        new Date(log.start).toLocaleString(),
+                                        ' — ',
+                                        formatDuration(log.duration)
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    // Archived section
+                    archivedProjects.length > 0 && React.createElement('div', { style: { marginTop: 32 } },
+                        React.createElement('button', {
+                            className: 'btn',
+                            style: { width: '100%', background: '#f3f3f3', color: '#888', marginBottom: 8 },
+                            onClick: () => setArchivedOpen(open => !open)
+                        },
+                            archivedOpen ? 'Hide Archived Projects' : `Show Archived Projects (${archivedProjects.length})`
+                        ),
+                        archivedOpen && archivedProjects.map((p, idx) =>
+                            React.createElement('div', { key: idx, className: 'project', style: { opacity: 0.7 } },
+                                React.createElement('div', { className: 'project-header' },
+                                    React.createElement('span', { className: 'project-name' }, p.name),
+                                    React.createElement('button', {
+                                        className: 'btn unarchive-btn',
+                                        onClick: () => unarchiveProject(projects.indexOf(p)),
+                                        title: 'Unarchive project',
+                                        style: { marginLeft: 4 }
+                                    },
+                                        React.createElement('i', { className: 'bi bi-arrow-up-square', style: { fontSize: '20px', color: '#374151' } })
+                                    ),
+                                    React.createElement('button', {
+                                        className: 'btn delete-btn-square',
+                                        onClick: () => deleteProject(projects.indexOf(p)),
+                                        title: 'Delete project',
+                                        style: { marginLeft: 4 }
+                                    },
+                                        React.createElement('i', { className: 'bi bi-trash', style: { fontSize: '20px', color: '#374151' } })
+                                    )
+                                ),
+                                p.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
+                                    p.logs.map((log, i) =>
+                                        React.createElement('li', { key: i, className: 'log-item indented' },
+                                            React.createElement('button', {
+                                                className: 'delete-log-btn',
+                                                title: 'Delete entry',
+                                                onClick: () => deleteLog(projects.indexOf(p), i)
+                                            }, '\u00D7'),
+                                            new Date(log.start).toLocaleString(),
+                                            ' — ',
+                                            formatDuration(log.duration)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            tab === 'report' && (
+                React.createElement('div', null,
+                    // Month navigation
+                    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 18 } },
+                        React.createElement('button', { className: 'btn', onClick: () => changeMonth(-1) }, '\u25C0'),
+                        React.createElement('span', { style: { fontWeight: 500, fontSize: '1.1rem' } },
+                            new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })
+                        ),
+                        React.createElement('button', { className: 'btn', onClick: () => changeMonth(1) }, '\u25B6')
+                    ),
+                    // Indicators
+                    React.createElement('div', { style: { display: 'flex', gap: 32, justifyContent: 'center', marginBottom: 24 } },
+                        React.createElement('div', { style: { textAlign: 'center' } },
+                            React.createElement('div', { style: { fontSize: '2rem', fontWeight: 600 } },
+                                formatDurationHM(monthData.totalSeconds)
+                            ),
+                            React.createElement('div', { style: { color: '#888', fontSize: '1rem' } }, 'Total time this month')
+                        ),
+                        React.createElement('div', { style: { textAlign: 'center' } },
+                            React.createElement('div', { style: { fontSize: '2rem', fontWeight: 600 } },
+                                monthData.projectCount
+                            ),
+                            React.createElement('div', { style: { color: '#888', fontSize: '1rem' } }, 'Projects worked on')
+                        )
+                    ),
+                    // Charts
+                    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 32, alignItems: 'center' } },
+                        React.createElement('div', { style: { width: '100%', maxWidth: "90%" } },
+                            React.createElement('canvas', { id: 'days-bar-chart', height: 220 })
+                        ),
+                        React.createElement('div', { style: { width: '100%', maxWidth: "90%" } },
+                            React.createElement('canvas', { id: 'projects-bar-chart', height: 220 })
+                        )
+                    ),
+                    React.createElement('div', { style: { width: '100%', display: 'flex', justifyContent: 'center', marginTop: 32 } },
+                        React.createElement('button', {
+                            className: 'btn',
+                            onClick: exportPDF
+                        }, 'Export PDF')
+                    )
+                )
+            )
+        )
+    );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App)); 
