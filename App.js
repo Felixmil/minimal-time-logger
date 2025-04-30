@@ -1,8 +1,10 @@
 // Minimalist Time Logger App
 const { useState, useEffect, useRef } = React;
 
+// Auto-detect GitHub Pages environment and disable DEV_MODE if needed
+const isGitHubPages = window.location.hostname.endsWith('github.io');
 // Toggle this to true for development (preloads from data.json if localStorage is empty)
-const DEV_MODE = true; // Set to false for production
+const DEV_MODE = !isGitHubPages && true; // Set to false for production or automatically when on GitHub Pages
 
 function App() {
     const [projects, setProjects] = useState([]);
@@ -30,7 +32,7 @@ function App() {
     // 2. Add state for selected projects (multi-select)
     const [selectedProjects, setSelectedProjects] = useState(['all']);
 
-    // Load data from localStorage or data.json (if DEV_MODE) on mount
+    // Load data from localStorage only
     useEffect(() => {
         const saved = localStorage.getItem('projects');
         if (saved) {
@@ -218,30 +220,30 @@ function App() {
 
     // Export as JSON (download from local data)
     function exportJSON() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ projects }, null, 2));
-        const dlAnchorElem = document.createElement('a');
-        dlAnchorElem.setAttribute("href", dataStr);
-        dlAnchorElem.setAttribute("download", "projects.json");
-        document.body.appendChild(dlAnchorElem);
-        dlAnchorElem.click();
-        document.body.removeChild(dlAnchorElem);
+        const dataStr = JSON.stringify({ projects }, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const exportFileDefaultName = 'timelogger_data.json';
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
     }
 
     // Export as CSV (download from local data)
     function exportCSV() {
-        let csv = 'Project,Start,End,Duration (seconds)\n';
+        let csv = 'Project,Start,End,Duration (hours)\n';
         projects.forEach(p => {
-            p.logs.forEach(log => {
-                csv += `"${p.name}","${new Date(log.start).toLocaleString()}","${new Date(log.end).toLocaleString()}",${log.duration}\n`;
+            (p.logs || []).forEach(log => {
+                const hours = (log.duration / 3600).toFixed(2);
+                csv += `"${p.name}","${new Date(log.start).toISOString()}","${new Date(log.end).toISOString()}",${hours}\n`;
             });
         });
-        const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-        const dlAnchorElem = document.createElement('a');
-        dlAnchorElem.setAttribute("href", dataStr);
-        dlAnchorElem.setAttribute("download", "projects.csv");
-        document.body.appendChild(dlAnchorElem);
-        dlAnchorElem.click();
-        document.body.removeChild(dlAnchorElem);
+        const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        const exportFileDefaultName = 'timelogger_data.csv';
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
     }
 
     // Import from JSON (local file, then update localStorage)
