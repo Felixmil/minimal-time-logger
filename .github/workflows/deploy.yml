@@ -30,7 +30,7 @@ jobs:
             echo '{"projects":[]}' > data.json
             echo "Created empty data.json file"
           fi
-      
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

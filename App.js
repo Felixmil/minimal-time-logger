@@ -53,8 +53,8 @@ function App() {
             setProjects(Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : JSON.parse(saved).projects || []);
             setLoading(false);
             if (demoFlag) setDemoMode(true);
-        } else if (DEV_MODE) {
-            setDemoBanner(true); // Suggest demo mode if no data
+        } else if (DEV_MODE || isGitHubPages) {
+            setDemoBanner(true); // Suggest demo mode if no data (in Dev or on GitHub Pages)
             setProjects([]);
             setLoading(false);
             setDemoMode(false);
@@ -485,17 +485,43 @@ function App() {
     // Demo mode: load sample data into localStorage and state
     function enterDemoMode() {
         setLoading(true);
-        fetch('../public/demo-data.json')
-            .then(res => res.json())
-            .then(data => {
-                setProjects(data.projects || []);
-                localStorage.setItem('projects', JSON.stringify(data.projects || []));
-                localStorage.setItem('demoMode', '1');
-                setDemoMode(true);
-                setDemoBanner(false);
+
+        // Try multiple possible paths to handle different deployment environments
+        const tryFetch = (paths) => {
+            if (paths.length === 0) {
+                console.error('Could not load demo data from any path');
                 setLoading(false);
-            })
-            .catch(() => setLoading(false));
+                return;
+            }
+
+            fetch(paths[0])
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error('Path not found');
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    setProjects(data.projects || []);
+                    localStorage.setItem('projects', JSON.stringify(data.projects || []));
+                    localStorage.setItem('demoMode', '1');
+                    setDemoMode(true);
+                    setDemoBanner(false);
+                    setLoading(false);
+                })
+                .catch(() => {
+                    console.log(`Failed to load from ${paths[0]}, trying next path...`);
+                    tryFetch(paths.slice(1));
+                });
+        };
+
+        // Try different possible paths in order
+        tryFetch([
+            './public/demo-data.json',
+            '/public/demo-data.json',
+            '/demo-data.json',
+            'demo-data.json'
+        ]);
     }
     // Exit demo mode: clear localStorage and reload
     function exitDemoMode() {
