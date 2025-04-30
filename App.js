@@ -32,20 +32,32 @@ function App() {
     // 2. Add state for selected projects (multi-select)
     const [selectedProjects, setSelectedProjects] = useState(['all']);
 
+    // Demo mode: add a banner if no data is present, allow entering demo mode (loads sample data), and add an exit demo mode button that clears localStorage and reloads the app
+    const [demoBanner, setDemoBanner] = useState(false); // show demo suggestion
+    const [demoMode, setDemoMode] = useState(false); // track if in demo mode
+
     // Load data from localStorage only
     useEffect(() => {
         const saved = localStorage.getItem('projects');
+        const demoFlag = localStorage.getItem('demoMode');
+        let hasData = false;
         if (saved) {
-            setProjects(JSON.parse(saved));
+            try {
+                const parsed = JSON.parse(saved);
+                hasData = Array.isArray(parsed) ? parsed.length > 0 : (parsed.projects && parsed.projects.length > 0);
+            } catch {
+                hasData = false;
+            }
+        }
+        if (saved && hasData) {
+            setProjects(Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : JSON.parse(saved).projects || []);
             setLoading(false);
+            if (demoFlag) setDemoMode(true);
         } else if (DEV_MODE) {
-            fetch('/data.json')
-                .then(res => res.json())
-                .then(data => {
-                    setProjects(data.projects || []);
-                    setLoading(false);
-                })
-                .catch(() => setLoading(false));
+            setDemoBanner(true); // Suggest demo mode if no data
+            setProjects([]);
+            setLoading(false);
+            setDemoMode(false);
         } else {
             setLoading(false);
         }
@@ -171,6 +183,10 @@ function App() {
             { name: newProject.trim(), logs: [], running: false, startedAt: null, archived: false }
         ]);
         setNewProject('');
+        if (localStorage.getItem('demoMode')) {
+            localStorage.removeItem('demoMode');
+            setDemoMode(false);
+        }
     }
 
     function startTimer(idx) {
@@ -256,6 +272,10 @@ function App() {
                 const data = JSON.parse(evt.target.result);
                 if (data.projects && Array.isArray(data.projects)) {
                     setProjects(data.projects);
+                    if (localStorage.getItem('demoMode')) {
+                        localStorage.removeItem('demoMode');
+                        setDemoMode(false);
+                    }
                 } else {
                     alert('Invalid file format.');
                 }
@@ -462,8 +482,76 @@ function App() {
     const activeProjects = projects.filter(p => !p.archived);
     const archivedProjects = projects.filter(p => p.archived);
 
+    // Demo mode: load sample data into localStorage and state
+    function enterDemoMode() {
+        setLoading(true);
+        fetch('/data.json')
+            .then(res => res.json())
+            .then(data => {
+                setProjects(data.projects || []);
+                localStorage.setItem('projects', JSON.stringify(data.projects || []));
+                localStorage.setItem('demoMode', '1');
+                setDemoMode(true);
+                setDemoBanner(false);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }
+    // Exit demo mode: clear localStorage and reload
+    function exitDemoMode() {
+        localStorage.removeItem('projects');
+        localStorage.removeItem('demoMode');
+        window.location.reload();
+    }
+
     return (
         React.createElement('div', { className: 'container' },
+            demoBanner && !loading && React.createElement('div', {
+                style: {
+                    background: '#e0e7ef',
+                    border: '1.5px solid #2563eb',
+                    color: '#1e293b',
+                    borderRadius: 8,
+                    padding: '14px 18px',
+                    marginBottom: 18,
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16
+                }
+            },
+                React.createElement('span', null, 'Try the demo version with example data!'),
+                React.createElement('button', {
+                    className: 'btn btn-green',
+                    onClick: enterDemoMode,
+                    style: { marginLeft: 8 }
+                }, 'Load Demo')
+            ),
+            demoMode && React.createElement('div', {
+                style: {
+                    background: '#fffbe6',
+                    border: '1.5px solid #facc15',
+                    color: '#b45309',
+                    borderRadius: 8,
+                    padding: '10px 16px',
+                    marginBottom: 18,
+                    fontSize: '0.98rem',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16
+                }
+            },
+                React.createElement('span', null, 'You are in demo mode. '),
+                React.createElement('button', {
+                    className: 'btn',
+                    onClick: exitDemoMode,
+                    style: { marginLeft: 8 }
+                }, 'Exit Demo Mode')
+            ),
             React.createElement('div', { className: 'header-row' },
                 React.createElement('div', {
                     className: menuOpen ? 'burger-menu open' : 'burger-menu',
