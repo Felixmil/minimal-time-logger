@@ -500,3 +500,45 @@ h1 {
     color: #1a7f4f;
     outline: none;
 }
+
+/* Multiselect dropdown for report tab */
+#project-dropdown {
+    min-width: 160px;
+    min-height: 32px;
+    padding: 4px;
+    border-radius: 5px;
+    border: 1px solid #e0e0e0;
+    background: #fafbfc;
+    font-size: 1rem;
+    color: #222;
+    outline: none;
+    margin-bottom: 0;
+}
+
+#project-dropdown:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px #b3c6e0;
+}
+
+/* Project tag for multi-select in report */
+.project-tag {
+    display: inline-block;
+    padding: 6px 12px;
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.project-tag:hover {
+    background-color: #e5e7eb;
+}
+
+.project-tag.selected {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #2563eb;
+}
