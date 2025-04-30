@@ -1,7 +1,10 @@
 // Minimalist Time Logger App
 const { useState, useEffect, useRef } = React;
 
-const API_URL = '';
+// Auto-detect GitHub Pages environment and disable DEV_MODE if needed
+const isGitHubPages = window.location.hostname.endsWith('github.io');
+// Toggle this to true for development (preloads from data.json if localStorage is empty)
+const DEV_MODE = !isGitHubPages && true; // Set to false for production or automatically when on GitHub Pages
 
 function App() {
     const [projects, setProjects] = useState([]);
@@ -26,25 +29,32 @@ function App() {
     // 1. Add state for archived section collapse
     const [archivedOpen, setArchivedOpen] = useState(false);
 
-    // Load data from backend on mount
+    // 2. Add state for selected projects (multi-select)
+    const [selectedProjects, setSelectedProjects] = useState(['all']);
+
+    // Load data from localStorage only
     useEffect(() => {
-        fetch(API_URL + '/api/data')
-            .then(res => res.json())
-            .then(data => {
-                setProjects(data.projects || []);
-                setLoading(false);
-            })
-            .catch(() => setLoading(false));
+        const saved = localStorage.getItem('projects');
+        if (saved) {
+            setProjects(JSON.parse(saved));
+            setLoading(false);
+        } else if (DEV_MODE) {
+            fetch('/data.json')
+                .then(res => res.json())
+                .then(data => {
+                    setProjects(data.projects || []);
+                    setLoading(false);
+                })
+                .catch(() => setLoading(false));
+        } else {
+            setLoading(false);
+        }
     }, []);
 
-    // Save data to backend on projects change
+    // Save data to localStorage on projects change
     useEffect(() => {
         if (!loading) {
-            fetch(API_URL + '/api/data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ projects })
-            });
+            localStorage.setItem('projects', JSON.stringify(projects));
         }
     }, [projects, loading]);
 
@@ -52,6 +62,13 @@ function App() {
         timerRef.current = setInterval(() => forceUpdate(x => x + 1), 1000);
         return () => clearInterval(timerRef.current);
     }, []);
+
+    // When switching to report tab, default to all active projects if none selected
+    useEffect(() => {
+        if (tab === 'report' && selectedProjects.length === 0) {
+            setSelectedProjects(['all']);
+        }
+    }, [tab, selectedProjects]);
 
     // Render charts when reporting tab, month, or data changes
     useEffect(() => {
@@ -143,7 +160,7 @@ function App() {
             if (daysChartRef.current) daysChartRef.current.destroy();
             if (projectsChartRef.current) projectsChartRef.current.destroy();
         };
-    }, [tab, reportMonth, projects]);
+    }, [tab, reportMonth, projects, selectedProjects]);
 
     // 2. Update addProject to include archived: false
     function addProject(e) {
@@ -201,17 +218,35 @@ function App() {
         return [h, m].map(v => v.toString().padStart(2, '0')).join('h');
     }
 
-    // Export as JSON (download from backend)
+    // Export as JSON (download from local data)
     function exportJSON() {
-        window.open(API_URL + '/api/export/json', '_blank');
+        const dataStr = JSON.stringify({ projects }, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const exportFileDefaultName = 'timelogger_data.json';
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
     }
 
-    // Export as CSV (download from backend)
+    // Export as CSV (download from local data)
     function exportCSV() {
-        window.open(API_URL + '/api/export/csv', '_blank');
+        let csv = 'Project,Start,End,Duration (hours)\n';
+        projects.forEach(p => {
+            (p.logs || []).forEach(log => {
+                const hours = (log.duration / 3600).toFixed(2);
+                csv += `"${p.name}","${new Date(log.start).toISOString()}","${new Date(log.end).toISOString()}",${hours}\n`;
+            });
+        });
+        const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        const exportFileDefaultName = 'timelogger_data.csv';
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
     }
 
-    // Import from JSON (local file, then POST to backend)
+    // Import from JSON (local file, then update localStorage)
     function importJSON(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -300,7 +335,7 @@ function App() {
     }
 
     // Calculate reporting data
-    function getMonthData() {
+    function getMonthData(selectedProjs = selectedProjects) {
         const [year, month] = reportMonth.split('-').map(Number);
         const start = new Date(year, month - 1, 1).getTime();
         const end = new Date(year, month, 1).getTime();
@@ -308,7 +343,18 @@ function App() {
         const projectsSet = new Set();
         const days = {};
         const projectTotals = {};
+
+        // Handle both legacy 'all' string and empty array as "all projects"
+        const showAllProjects = selectedProjs.length === 0 ||
+            (selectedProjs.length === 1 && selectedProjs[0] === 'all');
+
         projects.forEach(p => {
+            // Skip archived projects in reporting
+            if (p.archived) return;
+
+            // Filter by selected projects
+            if (!showAllProjects && !selectedProjs.includes(p.name)) return;
+
             p.logs.forEach(log => {
                 if (log.start >= start && log.start < end) {
                     totalSeconds += log.duration;
@@ -328,6 +374,7 @@ function App() {
             projectTotals
         };
     }
+    // Calculate current month data with the current selection state
     const monthData = getMonthData();
 
     // Export PDF for reporting tab
@@ -340,23 +387,35 @@ function App() {
         // Month
         doc.setFontSize(14);
         doc.text(new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' }), 40, 80);
+        // Project filter
+        doc.setFontSize(12);
+
+        // Show selected projects
+        if (selectedProjects.length === 0 || (selectedProjects.length === 1 && selectedProjects[0] === 'all')) {
+            doc.text('Projects: All projects', 40, 100);
+        } else {
+            doc.text('Projects: ' + selectedProjects.join(', '), 40, 100);
+        }
+
         // Indicators
         doc.setFontSize(12);
-        doc.text('Total time this month: ' + formatDurationHM(monthData.totalSeconds), 40, 110);
-        doc.text('Projects worked on: ' + monthData.projectCount, 40, 130);
+        doc.text('Total time this month: ' + formatDurationHM(monthData.totalSeconds), 40, 120);
+        doc.text('Projects worked on: ' + monthData.projectCount, 40, 140);
         // Charts
         // Use html2canvas to render the chart canvases
         const daysCanvas = document.getElementById('days-bar-chart');
         const projectsCanvas = document.getElementById('projects-bar-chart');
+        let y = 170;
         if (daysCanvas) {
             const imgData = await window.html2canvas(daysCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
-            doc.text('Time per day', 40, 170);
-            doc.addImage(imgData, 'PNG', 40, 180, 480, 180);
+            doc.text('Time per day', 40, y);
+            doc.addImage(imgData, 'PNG', 40, y + 10, 480, 180);
+            y += 200;
         }
         if (projectsCanvas) {
             const imgData2 = await window.html2canvas(projectsCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
-            doc.text('Time per project', 40, 380);
-            doc.addImage(imgData2, 'PNG', 40, 390, 480, 180);
+            doc.text('Time per project', 40, y);
+            doc.addImage(imgData2, 'PNG', 40, y + 10, 480, 180);
         }
         doc.save('monthly_report.pdf');
     }
@@ -445,7 +504,7 @@ function App() {
                         key: t,
                         className: 'tab-btn' + (tab === t ? ' active' : ''),
                         onClick: () => setTab(t)
-                    }, t === 'log' ? 'Log' : 'Reporting')
+                    }, t === 'log' ? 'Log' : 'Report')
                 )
             ),
             tab === 'log' && (
@@ -619,6 +678,53 @@ function App() {
             ),
             tab === 'report' && (
                 React.createElement('div', null,
+                    // Project multi-select UI
+                    React.createElement('div', { style: { marginBottom: 12 } },
+                        React.createElement('label', { style: { fontWeight: 500, display: 'block', marginBottom: 8, textAlign: 'center' } }, 'Select Projects:'),
+                        React.createElement('div', {
+                            style: {
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 8,
+                                justifyContent: 'center',
+                                padding: '0 10px',
+                                maxWidth: '90%',
+                                margin: '0 auto'
+                            }
+                        },
+                            // "All" option
+                            React.createElement('div', {
+                                className: selectedProjects.length === 0 || (selectedProjects.length === 1 && selectedProjects[0] === 'all')
+                                    ? 'project-tag selected'
+                                    : 'project-tag',
+                                onClick: () => setSelectedProjects(['all'])
+                            }, 'All projects'),
+
+                            // Individual project options sorted alphabetically
+                            [...activeProjects]
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map(p =>
+                                    React.createElement('div', {
+                                        key: p.name,
+                                        className: selectedProjects.includes(p.name) ? 'project-tag selected' : 'project-tag',
+                                        onClick: () => {
+                                            // If "all" is selected, clear it first
+                                            const currentSelected = selectedProjects.filter(proj => proj !== 'all');
+
+                                            if (currentSelected.includes(p.name)) {
+                                                // Remove the project if already selected
+                                                setSelectedProjects(
+                                                    currentSelected.filter(proj => proj !== p.name)
+                                                );
+                                            } else {
+                                                // Add the project to selection
+                                                setSelectedProjects([...currentSelected, p.name]);
+                                            }
+                                        }
+                                    }, p.name)
+                                )
+                        )
+                    ),
                     // Month navigation
                     React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 18 } },
                         React.createElement('button', { className: 'btn', onClick: () => changeMonth(-1) }, '\u25C0'),
