@@ -474,6 +474,7 @@ function App() {
                         className: 'burger-icon',
                         onClick: toggleMenu,
                         'aria-label': 'Open menu',
+                        'data-tooltip': 'Export/Import options',
                         type: 'button'
                     },
                         React.createElement('span'),
@@ -481,8 +482,14 @@ function App() {
                         React.createElement('span')
                     ),
                     React.createElement('div', { className: 'burger-dropdown' },
-                        React.createElement('button', { onClick: () => { exportJSON(); closeMenu(); } }, 'Export JSON'),
-                        React.createElement('label', null,
+                        React.createElement('button', {
+                            onClick: () => { exportJSON(); closeMenu(); },
+                            'data-tooltip': 'Save time data as JSON file'
+                        }, 'Export JSON'),
+                        React.createElement('button', {
+                            'data-tooltip': 'Load time data from JSON file',
+                            onClick: () => fileInputRef.current.click()
+                        },
                             'Import JSON',
                             React.createElement('input', {
                                 type: 'file',
@@ -492,7 +499,10 @@ function App() {
                                 onChange: e => { importJSON(e); closeMenu(); }
                             })
                         ),
-                        React.createElement('button', { onClick: () => { exportCSV(); closeMenu(); } }, 'Export CSV')
+                        React.createElement('button', {
+                            onClick: () => { exportCSV(); closeMenu(); },
+                            'data-tooltip': 'Export time data as CSV file'
+                        }, 'Export CSV')
                     )
                 ),
                 React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger")
@@ -503,7 +513,8 @@ function App() {
                     React.createElement('div', {
                         key: t,
                         className: 'tab-btn' + (tab === t ? ' active' : ''),
-                        onClick: () => setTab(t)
+                        onClick: () => setTab(t),
+                        'data-tooltip': t === 'log' ? 'Manage your time entries' : 'View time reports and statistics'
                     }, t === 'log' ? 'Log' : 'Report')
                 )
             ),
@@ -540,7 +551,11 @@ function App() {
                             placeholder: 'Add project...',
                             className: 'input'
                         }),
-                        React.createElement('button', { type: 'submit', className: 'btn' }, 'Add')
+                        React.createElement('button', {
+                            type: 'submit',
+                            className: 'btn',
+                            'data-tooltip': 'Create a new project'
+                        }, 'Add')
                     ),
                     loading
                         ? React.createElement('p', { className: 'empty' }, 'Loading...')
@@ -552,6 +567,7 @@ function App() {
                                 React.createElement('button', {
                                     className: 'btn play-btn' + (p.running ? ' running' : ''),
                                     onClick: p.running ? () => stopTimer(projects.indexOf(p)) : () => startTimer(projects.indexOf(p)),
+                                    'data-tooltip': p.running ? 'Stop the timer' : 'Start timing for this project',
                                     title: p.running ? 'Stop timer' : 'Start timer'
                                 },
                                     p.running
@@ -561,11 +577,13 @@ function App() {
                                 React.createElement('button', {
                                     className: 'btn add-entry',
                                     onClick: () => openManualForm(projects.indexOf(p)),
+                                    'data-tooltip': 'Add a manual time entry',
                                     title: 'Add manual entry'
                                 }, 'Add Entry'),
                                 React.createElement('button', {
                                     className: 'btn archive-btn-square',
                                     onClick: () => archiveProject(projects.indexOf(p)),
+                                    'data-tooltip': 'Archive this project',
                                     title: 'Archive project',
                                     style: { marginLeft: 4 }
                                 },
@@ -574,6 +592,7 @@ function App() {
                                 React.createElement('button', {
                                     className: 'btn delete-btn-square',
                                     onClick: () => deleteProject(projects.indexOf(p)),
+                                    'data-tooltip': 'Delete this project',
                                     title: 'Delete project',
                                     style: { marginLeft: 4 }
                                 },
@@ -608,8 +627,17 @@ function App() {
                                     required: true,
                                     style: { padding: 4 }
                                 }),
-                                React.createElement('button', { type: 'submit', className: 'btn' }, 'Save'),
-                                React.createElement('button', { type: 'button', className: 'btn', onClick: closeManualForm }, 'Cancel')
+                                React.createElement('button', {
+                                    type: 'submit',
+                                    className: 'btn tooltip-wide',
+                                    'data-tooltip': 'Save this time entry to the project'
+                                }, 'Save'),
+                                React.createElement('button', {
+                                    type: 'button',
+                                    className: 'btn tooltip-wide',
+                                    onClick: closeManualForm,
+                                    'data-tooltip': 'Cancel without saving this entry'
+                                }, 'Cancel')
                             ),
                             p.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
                                 p.logs.map((log, i) =>
@@ -617,6 +645,7 @@ function App() {
                                         React.createElement('button', {
                                             className: 'delete-log-btn',
                                             title: 'Delete entry',
+                                            'data-tooltip': 'Delete this time entry',
                                             onClick: () => deleteLog(projects.indexOf(p), i)
                                         }, '\u00D7'),
                                         new Date(log.start).toLocaleString(),
@@ -632,7 +661,8 @@ function App() {
                         React.createElement('button', {
                             className: 'btn',
                             style: { width: '100%', background: '#f3f3f3', color: '#888', marginBottom: 8 },
-                            onClick: () => setArchivedOpen(open => !open)
+                            onClick: () => setArchivedOpen(open => !open),
+                            'data-tooltip': archivedOpen ? 'Hide archived projects' : 'Show your archived projects'
                         },
                             archivedOpen ? 'Hide Archived Projects' : `Show Archived Projects (${archivedProjects.length})`
                         ),
@@ -644,6 +674,7 @@ function App() {
                                         className: 'btn unarchive-btn',
                                         onClick: () => unarchiveProject(projects.indexOf(p)),
                                         title: 'Unarchive project',
+                                        'data-tooltip': 'Restore this project',
                                         style: { marginLeft: 4 }
                                     },
                                         React.createElement('i', { className: 'bi bi-arrow-up-square', style: { fontSize: '20px', color: '#374151' } })
@@ -694,10 +725,11 @@ function App() {
                         },
                             // "All" option
                             React.createElement('div', {
-                                className: selectedProjects.length === 0 || (selectedProjects.length === 1 && selectedProjects[0] === 'all')
+                                className: (selectedProjects.length === 0 || (selectedProjects.length === 1 && selectedProjects[0] === 'all')
                                     ? 'project-tag selected'
-                                    : 'project-tag',
-                                onClick: () => setSelectedProjects(['all'])
+                                    : 'project-tag') + ' tooltip-wide',
+                                onClick: () => setSelectedProjects(['all']),
+                                'data-tooltip': 'Show data from all active projects'
                             }, 'All projects'),
 
                             // Individual project options sorted alphabetically
@@ -706,7 +738,7 @@ function App() {
                                 .map(p =>
                                     React.createElement('div', {
                                         key: p.name,
-                                        className: selectedProjects.includes(p.name) ? 'project-tag selected' : 'project-tag',
+                                        className: (selectedProjects.includes(p.name) ? 'project-tag selected' : 'project-tag') + ' tooltip-wide',
                                         onClick: () => {
                                             // If "all" is selected, clear it first
                                             const currentSelected = selectedProjects.filter(proj => proj !== 'all');
@@ -720,18 +752,29 @@ function App() {
                                                 // Add the project to selection
                                                 setSelectedProjects([...currentSelected, p.name]);
                                             }
-                                        }
+                                        },
+                                        'data-tooltip': selectedProjects.includes(p.name)
+                                            ? `Click to remove ${p.name} from selection`
+                                            : `Click to add ${p.name} to selection`
                                     }, p.name)
                                 )
                         )
                     ),
                     // Month navigation
                     React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 18 } },
-                        React.createElement('button', { className: 'btn', onClick: () => changeMonth(-1) }, '\u25C0'),
+                        React.createElement('button', {
+                            className: 'btn tooltip-wide',
+                            onClick: () => changeMonth(-1),
+                            'data-tooltip': 'View previous month data'
+                        }, '\u25C0'),
                         React.createElement('span', { style: { fontWeight: 500, fontSize: '1.1rem' } },
                             new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })
                         ),
-                        React.createElement('button', { className: 'btn', onClick: () => changeMonth(1) }, '\u25B6')
+                        React.createElement('button', {
+                            className: 'btn tooltip-wide',
+                            onClick: () => changeMonth(1),
+                            'data-tooltip': 'View next month data'
+                        }, '\u25B6')
                     ),
                     // Indicators
                     React.createElement('div', { style: { display: 'flex', gap: 32, justifyContent: 'center', marginBottom: 24 } },
@@ -759,8 +802,9 @@ function App() {
                     ),
                     React.createElement('div', { style: { width: '100%', display: 'flex', justifyContent: 'center', marginTop: 32 } },
                         React.createElement('button', {
-                            className: 'btn',
-                            onClick: exportPDF
+                            className: 'btn tooltip-wide',
+                            onClick: exportPDF,
+                            'data-tooltip': 'Create a PDF report with charts and data'
                         }, 'Export PDF')
                     )
                 )
