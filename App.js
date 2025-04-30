@@ -485,7 +485,7 @@ function App() {
     // Demo mode: load sample data into localStorage and state
     function enterDemoMode() {
         setLoading(true);
-        fetch('/data.json')
+        fetch('/demo-data.json')
             .then(res => res.json())
             .then(data => {
                 setProjects(data.projects || []);

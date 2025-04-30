@@ -1,0 +1,198 @@
+{
+  "projects": [
+    {
+      "name": "Client Website Redesign",
+      "logs": [
+        {
+          "start": 1743792000000,
+          "end": 1743795600000,
+          "duration": 3600
+        },
+        {
+          "start": 1743878400000,
+          "end": 1743882000000,
+          "duration": 3600
+        },
+        {
+          "start": 1743964800000,
+          "end": 1743968400000,
+          "duration": 3600
+        },
+        {
+          "start": 1742054400000,
+          "end": 1742058000000,
+          "duration": 3600
+        },
+        {
+          "start": 1742140800000,
+          "end": 1742144400000,
+          "duration": 3600
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": false
+    },
+    {
+      "name": "Personal Blog Writing",
+      "logs": [
+        {
+          "start": 1743885600000,
+          "end": 1743887400000,
+          "duration": 1800
+        },
+        {
+          "start": 1743972000000,
+          "end": 1743973800000,
+          "duration": 1800
+        },
+        {
+          "start": 1742227200000,
+          "end": 1742230800000,
+          "duration": 3600
+        },
+        {
+          "start": 1742313600000,
+          "end": 1742315400000,
+          "duration": 1800
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": false
+    },
+    {
+      "name": "Online Course: React Mastery",
+      "logs": [
+        {
+          "start": 1743802800000,
+          "end": 1743806400000,
+          "duration": 3600
+        },
+        {
+          "start": 1743892800000,
+          "end": 1743894600000,
+          "duration": 1800
+        },
+        {
+          "start": 1742400000000,
+          "end": 1742403600000,
+          "duration": 3600
+        },
+        {
+          "start": 1742486400000,
+          "end": 1742490000000,
+          "duration": 3600
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": false
+    },
+    {
+      "name": "Vacation Planning",
+      "logs": [
+        {
+          "start": 1743810000000,
+          "end": 1743811800000,
+          "duration": 1800
+        },
+        {
+          "start": 1742572800000,
+          "end": 1742576400000,
+          "duration": 3600
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": true
+    },
+    {
+      "name": "Old Freelance Project",
+      "logs": [
+        {
+          "start": 1743705600000,
+          "end": 1743712800000,
+          "duration": 7200
+        },
+        {
+          "start": 1742659200000,
+          "end": 1742662800000,
+          "duration": 3600
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": true
+    },
+    {
+      "name": "Team Meeting",
+      "logs": [
+        {
+          "start": 1744051200000,
+          "end": 1744053000000,
+          "duration": 1800
+        },
+        {
+          "start": 1744137600000,
+          "end": 1744141200000,
+          "duration": 3600
+        },
+        {
+          "start": 1744224000000,
+          "end": 1744225800000,
+          "duration": 1800
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": false
+    },
+    {
+      "name": "App Testing & QA",
+      "logs": [
+        {
+          "start": 1744310400000,
+          "end": 1744314000000,
+          "duration": 3600
+        },
+        {
+          "start": 1744396800000,
+          "end": 1744400400000,
+          "duration": 3600
+        },
+        {
+          "start": 1744483200000,
+          "end": 1744486800000,
+          "duration": 3600
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": false
+    },
+    {
+      "name": "Research & Learning",
+      "logs": [
+        {
+          "start": 1744569600000,
+          "end": 1744573200000,
+          "duration": 3600
+        },
+        {
+          "start": 1744656000000,
+          "end": 1744659600000,
+          "duration": 3600
+        },
+        {
+          "start": 1744742400000,
+          "end": 1744746000000,
+          "duration": 3600
+        }
+      ],
+      "running": false,
+      "startedAt": null,
+      "archived": false
+    }
+  ]
+}
