@@ -1,6 +1,6 @@
 # Minimal Time Logger
 
-A simple, browser-based time tracking application that works without a backend server.
+A simple, browser-based time tracking application that works without a backend server. 
 
 ## Features
 
@@ -8,6 +8,7 @@ A simple, browser-based time tracking application that works without a backend s
 - Start/stop timers or add manual time entries
 - Generate monthly reports with charts
 - Export data as JSON, CSV, or PDF
+- Import data from JSON.
 - Archive completed projects
 
 ## GitHub Pages Deployment
