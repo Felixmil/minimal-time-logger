@@ -247,13 +247,34 @@ function App() {
 
     // Export as CSV (download from local data)
     function exportCSV() {
-        let csv = 'Project,Start,End,Duration (hours)\n';
+        // Aggregate logs by project and day
+        const aggregatedData = {};
+
         projects.forEach(p => {
             (p.logs || []).forEach(log => {
-                const hours = (log.duration / 3600).toFixed(2);
-                csv += `"${p.name}","${new Date(log.start).toISOString()}","${new Date(log.end).toISOString()}",${hours}\n`;
+                const date = new Date(log.start).toISOString().slice(0, 10);
+                const key = `${p.name}|${date}`;
+
+                if (!aggregatedData[key]) {
+                    aggregatedData[key] = {
+                        project: p.name,
+                        date: date,
+                        totalDuration: 0
+                    };
+                }
+
+                aggregatedData[key].totalDuration += log.duration;
             });
         });
+
+        let csv = 'Project,Date,Duration (hours)\n';
+
+        // Convert aggregated data to CSV
+        Object.values(aggregatedData).forEach(entry => {
+            const hours = (entry.totalDuration / 3600).toFixed(2);
+            csv += `"${entry.project}","${entry.date}",${hours}\n`;
+        });
+
         const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
         const exportFileDefaultName = 'timelogger_data.csv';
         const linkElement = document.createElement('a');
@@ -438,6 +459,61 @@ function App() {
             doc.addImage(imgData2, 'PNG', 40, y + 10, 480, 180);
         }
         doc.save('monthly_report.pdf');
+    }
+
+    // Export CSV for reporting tab with filtered data
+    function exportReportCSV() {
+        const [year, month] = reportMonth.split('-').map(Number);
+        const start = new Date(year, month - 1, 1).getTime();
+        const end = new Date(year, month, 1).getTime();
+
+        // Handle both legacy 'all' string and empty array as "all projects"
+        const showAllProjects = selectedProjects.length === 0 ||
+            (selectedProjects.length === 1 && selectedProjects[0] === 'all');
+
+        // Aggregate logs by project and day
+        const aggregatedData = {};
+
+        projects.forEach(p => {
+            // Skip archived projects
+            if (p.archived) return;
+
+            // Filter by selected projects
+            if (!showAllProjects && !selectedProjects.includes(p.name)) return;
+
+            (p.logs || []).forEach(log => {
+                // Filter by selected month
+                if (log.start >= start && log.start < end) {
+                    const date = new Date(log.start).toISOString().slice(0, 10);
+                    const key = `${p.name}|${date}`;
+
+                    if (!aggregatedData[key]) {
+                        aggregatedData[key] = {
+                            project: p.name,
+                            date: date,
+                            totalDuration: 0
+                        };
+                    }
+
+                    aggregatedData[key].totalDuration += log.duration;
+                }
+            });
+        });
+
+        let csv = 'Project,Date,Duration (hours)\n';
+
+        // Convert aggregated data to CSV
+        Object.values(aggregatedData).forEach(entry => {
+            const hours = (entry.totalDuration / 3600).toFixed(2);
+            csv += `"${entry.project}","${entry.date}",${hours}\n`;
+        });
+
+        const fileName = `monthly_report_${reportMonth}.csv`;
+        const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', fileName);
+        linkElement.click();
     }
 
     // Helper to check for overlapping logs in a list
@@ -914,12 +990,17 @@ function App() {
                             React.createElement('canvas', { id: 'projects-bar-chart', height: 220 })
                         )
                     ),
-                    React.createElement('div', { style: { width: '100%', display: 'flex', justifyContent: 'center', marginTop: 32 } },
+                    React.createElement('div', { style: { width: '100%', display: 'flex', justifyContent: 'center', marginTop: 32, gap: 16 } },
                         React.createElement('button', {
                             className: 'btn tooltip-wide',
                             onClick: exportPDF,
                             'data-tooltip': 'Create a PDF report with charts and data'
-                        }, 'Export PDF')
+                        }, 'Export PDF'),
+                        React.createElement('button', {
+                            className: 'btn tooltip-wide',
+                            onClick: exportReportCSV,
+                            'data-tooltip': 'Export filtered data as CSV'
+                        }, 'Export CSV')
                     )
                 )
             )
@@ -927,4 +1008,42 @@ function App() {
     );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App)); 
+// Footer component
+function Footer() {
+    return React.createElement('div', { className: 'footer' },
+        React.createElement('div', null,
+            'Created by ',
+            React.createElement('a',
+                { href: 'https://bsky.app/profile/felixmil.com', target: '_blank', rel: 'noopener noreferrer' },
+                'Felix MIL ',
+                React.createElement('i', {
+                    className: 'bi bi-bluesky',
+                    style: { color: '#0085ff', fontSize: '1.25rem', verticalAlign: 'middle' }
+                })
+            ),
+            ' | ',
+            React.createElement('a',
+                {
+                    href: 'https://github.com/Felixmil/minimal-time-logger',
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                    title: 'GitHub Repository',
+                    style: { display: 'inline-flex', alignItems: 'center' }
+                },
+                React.createElement('i', {
+                    className: 'bi bi-github',
+                    style: { color: '#24292e', fontSize: '1.35rem', verticalAlign: 'middle' }
+                })
+            )
+        )
+    );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+    React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(App),
+        React.createElement(Footer)
+    )
+); 

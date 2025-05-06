@@ -29,13 +29,35 @@ app.post('/api/data', (req, res) => {
         if (err) return res.status(500).json({ error: 'Failed to save' });
         // Also update CSV file
         const projects = req.body.projects || [];
-        let csv = 'Project,Start,End,Duration (hours)\n';
+
+        // Aggregate logs by project and day
+        const aggregatedData = {};
+
         projects.forEach(p => {
             (p.logs || []).forEach(log => {
-                const hours = (log.duration / 3600).toFixed(2);
-                csv += `"${p.name}","${new Date(log.start).toISOString()}","${new Date(log.end).toISOString()}",${hours}\n`;
+                const date = new Date(log.start).toISOString().slice(0, 10);
+                const key = `${p.name}|${date}`;
+
+                if (!aggregatedData[key]) {
+                    aggregatedData[key] = {
+                        project: p.name,
+                        date: date,
+                        totalDuration: 0
+                    };
+                }
+
+                aggregatedData[key].totalDuration += log.duration;
             });
         });
+
+        let csv = 'Project,Date,Duration (hours)\n';
+
+        // Convert aggregated data to CSV
+        Object.values(aggregatedData).forEach(entry => {
+            const hours = (entry.totalDuration / 3600).toFixed(2);
+            csv += `"${entry.project}","${entry.date}",${hours}\n`;
+        });
+
         fs.writeFile(path.join(__dirname, 'timelogger_data.csv'), csv, () => { });
         res.json({ ok: true });
     });
@@ -50,13 +72,35 @@ app.get('/api/export/csv', (req, res) => {
                 projects = JSON.parse(data).projects || [];
             } catch { }
         }
-        let csv = 'Project,Start,End,Duration (hours)\n';
+
+        // Aggregate logs by project and day
+        const aggregatedData = {};
+
         projects.forEach(p => {
             (p.logs || []).forEach(log => {
-                const hours = (log.duration / 3600).toFixed(2);
-                csv += `"${p.name}","${new Date(log.start).toISOString()}","${new Date(log.end).toISOString()}",${hours}\n`;
+                const date = new Date(log.start).toISOString().slice(0, 10);
+                const key = `${p.name}|${date}`;
+
+                if (!aggregatedData[key]) {
+                    aggregatedData[key] = {
+                        project: p.name,
+                        date: date,
+                        totalDuration: 0
+                    };
+                }
+
+                aggregatedData[key].totalDuration += log.duration;
             });
         });
+
+        let csv = 'Project,Date,Duration (hours)\n';
+
+        // Convert aggregated data to CSV
+        Object.values(aggregatedData).forEach(entry => {
+            const hours = (entry.totalDuration / 3600).toFixed(2);
+            csv += `"${entry.project}","${entry.date}",${hours}\n`;
+        });
+
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename="timelogger_data.csv"');
         res.send(csv);
