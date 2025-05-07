@@ -62,8 +62,7 @@ h1 {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.btn.start,
-.btn.add-entry {
+.btn.start {
     background: #e0e7ef;
     color: #222;
 }
@@ -338,8 +337,8 @@ h1 {
     align-items: center;
     justify-content: center;
     gap: 0;
-    margin-bottom: 0;
     position: relative;
+    margin-bottom: 18px;
     min-height: 64px;
 }
 
@@ -361,13 +360,75 @@ h1 {
     margin: 0;
     letter-spacing: 0.01em;
     line-height: 1.2;
+    padding-right: 36px;
+    /* Make space for the info button */
+}
+
+/* Info button styling */
+.btn.info-btn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 8px;
+    border-radius: 50%;
+    background: none;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn.info-btn:hover {
+    background: #e0e7ef;
+}
+
+/* Modal styling */
+.modal-overlay {
+    animation: fadeIn 0.2s ease-out;
+}
+
+.info-dialog {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.close-info-btn:hover {
+    background: #e5e7eb !important;
+    color: #000;
+}
+
+.info-dialog a:hover {
+    text-decoration: underline;
 }
 
 /* Archived section styles */
 .archived-section {
-    margin-top: 32px;
+    margin-top: 28px;
     border-top: 1px dashed #e0e0e0;
-    padding-top: 16px;
+    padding-top: 12px;
 }
 
 .project.archived {
@@ -479,6 +540,32 @@ h1 {
     outline: none;
 }
 
+.btn.add-entry {
+    background: #e0e7ef;
+    color: #374151;
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 1.1rem;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn.add-entry i {
+    font-size: 20px;
+    color: #374151;
+}
+
+.btn.add-entry:hover,
+.btn.add-entry:focus {
+    background: #d1dbeb;
+    color: #374151;
+    outline: none;
+}
+
 .btn.unarchive-btn {
     background: #e0e7ef;
     color: #1a7f4f;
@@ -519,7 +606,7 @@ h1 {
     box-shadow: 0 0 0 2px #b3c6e0;
 }
 
-/* Project tag for multi-select in report */
+/* Group tag for multi-select in report */
 .project-tag {
     display: inline-block;
     padding: 6px 12px;

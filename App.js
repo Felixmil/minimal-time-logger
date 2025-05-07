@@ -7,13 +7,13 @@ const isGitHubPages = window.location.hostname.endsWith('github.io');
 const DEV_MODE = !isGitHubPages && true; // Set to false for production or automatically when on GitHub Pages
 
 function App() {
-    const [projects, setProjects] = useState([]);
-    const [newProject, setNewProject] = useState('');
+    const [groups, setGroups] = useState([]);
+    const [newGroup, setNewGroup] = useState('');
     const [_, forceUpdate] = useState(0); // for timer re-render
     const timerRef = useRef();
     const fileInputRef = useRef();
     const [loading, setLoading] = useState(true);
-    const [manualIdx, setManualIdx] = useState(null); // index of project for manual entry
+    const [manualIdx, setManualIdx] = useState(null); // index of group for manual entry
     const [manualForm, setManualForm] = useState({ date: '', start: '', end: '' });
     const [menuOpen, setMenuOpen] = useState(false);
     const [tab, setTab] = useState('log');
@@ -21,16 +21,18 @@ function App() {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
+    // Add state for info dialog
+    const [infoOpen, setInfoOpen] = useState(false);
 
     // Chart.js refs
     const daysChartRef = useRef();
-    const projectsChartRef = useRef();
+    const groupsChartRef = useRef();
 
     // 1. Add state for archived section collapse
     const [archivedOpen, setArchivedOpen] = useState(false);
 
-    // 2. Add state for selected projects (multi-select)
-    const [selectedProjects, setSelectedProjects] = useState(['all']);
+    // 2. Add state for selected groups (multi-select)
+    const [selectedGroups, setSelectedGroups] = useState(['all']);
 
     // Demo mode: add a banner if no data is present, allow entering demo mode (loads sample data), and add an exit demo mode button that clears localStorage and reloads the app
     const [demoBanner, setDemoBanner] = useState(false); // show demo suggestion
@@ -38,24 +40,24 @@ function App() {
 
     // Load data from localStorage only
     useEffect(() => {
-        const saved = localStorage.getItem('projects');
+        const saved = localStorage.getItem('groups');
         const demoFlag = localStorage.getItem('demoMode');
         let hasData = false;
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                hasData = Array.isArray(parsed) ? parsed.length > 0 : (parsed.projects && parsed.projects.length > 0);
+                hasData = Array.isArray(parsed) ? parsed.length > 0 : (parsed.groups && parsed.groups.length > 0);
             } catch {
                 hasData = false;
             }
         }
         if (saved && hasData) {
-            setProjects(Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : JSON.parse(saved).projects || []);
+            setGroups(Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : JSON.parse(saved).groups || []);
             setLoading(false);
             if (demoFlag) setDemoMode(true);
         } else if (DEV_MODE || isGitHubPages) {
             setDemoBanner(true); // Suggest demo mode if no data (in Dev or on GitHub Pages)
-            setProjects([]);
+            setGroups([]);
             setLoading(false);
             setDemoMode(false);
         } else {
@@ -63,40 +65,45 @@ function App() {
         }
     }, []);
 
-    // Save data to localStorage on projects change
+    // Save data to localStorage on groups change
     useEffect(() => {
         if (!loading) {
-            localStorage.setItem('projects', JSON.stringify(projects));
+            localStorage.setItem('groups', JSON.stringify(groups));
         }
-    }, [projects, loading]);
+    }, [groups, loading]);
 
     useEffect(() => {
         timerRef.current = setInterval(() => forceUpdate(x => x + 1), 1000);
         return () => clearInterval(timerRef.current);
     }, []);
 
-    // When switching to report tab, default to all active projects if none selected
+    // When switching to report tab, default to all active groups if none selected
     useEffect(() => {
-        if (tab === 'report' && selectedProjects.length === 0) {
-            setSelectedProjects(['all']);
+        if (tab === 'report' && selectedGroups.length === 0) {
+            setSelectedGroups(['all']);
         }
-    }, [tab, selectedProjects]);
+    }, [tab, selectedGroups]);
 
     // Render charts when reporting tab, month, or data changes
     useEffect(() => {
         if (tab !== 'report') return;
         const daysCtx = document.getElementById('days-bar-chart');
-        const projectsCtx = document.getElementById('projects-bar-chart');
-        if (!daysCtx || !projectsCtx) return;
+        const groupsCtx = document.getElementById('groups-bar-chart');
+        if (!daysCtx || !groupsCtx) return;
         if (daysChartRef.current) daysChartRef.current.destroy();
-        if (projectsChartRef.current) projectsChartRef.current.destroy();
+        if (groupsChartRef.current) groupsChartRef.current.destroy();
         const days = getMonthData().days;
+        // Sort days chronologically (they're in YYYY-MM-DD format)
         const dayLabels = Object.keys(days).sort();
         const dayData = dayLabels.map(d => +(days[d] / 3600).toFixed(2)); // hours
+
+        // Format day labels to show only day numbers
+        const formattedDayLabels = dayLabels.map(d => parseInt(d.split('-')[2], 10));
+
         daysChartRef.current = new window.Chart(daysCtx, {
             type: 'bar',
             data: {
-                labels: dayLabels,
+                labels: formattedDayLabels,
                 datasets: [{
                     label: 'Hours per day',
                     data: dayData,
@@ -108,18 +115,36 @@ function App() {
                 layout: { padding: { top: 32 } },
                 plugins: {
                     legend: { display: false },
-                    tooltip: { enabled: false },
+                    tooltip: {
+                        enabled: true,
+                        callbacks: {
+                            title: (tooltipItems) => {
+                                const idx = tooltipItems[0].dataIndex;
+                                return dayLabels[idx];
+                            }
+                        }
+                    },
                     datalabels: {
-                        display: true,
+                        display: function (context) {
+                            return context.dataset.data[context.dataIndex] > 0;
+                        },
                         color: '#222',
                         anchor: 'end',
                         align: 'end',
                         font: { weight: 'bold' },
-                        formatter: (value) => value + 'h'
+                        formatter: (value) => value > 0 ? value + 'h' : ''
                     }
                 },
                 scales: {
-                    x: { title: { display: true, text: 'Day' } },
+                    x: {
+                        title: { display: true, text: 'Day' },
+                        ticks: {
+                            callback: function (value, index) {
+                                // Show day numbers at regular intervals
+                                return formattedDayLabels[index];
+                            }
+                        }
+                    },
                     y: { title: { display: true, text: 'Hours' }, beginAtZero: true }
                 },
                 responsive: true,
@@ -127,19 +152,19 @@ function App() {
             },
             plugins: window.ChartDataLabels ? [window.ChartDataLabels] : []
         });
-        // Projects bar chart
-        const projects = getMonthData().projectTotals;
-        let projectLabels = Object.keys(projects);
-        // Sort projects by total hours descending
-        projectLabels = projectLabels.sort((a, b) => (projects[b] || 0) - (projects[a] || 0));
-        const projectData = projectLabels.map(p => +(projects[p] / 3600).toFixed(2)); // hours
-        projectsChartRef.current = new window.Chart(projectsCtx, {
+        // Groups bar chart
+        const groups = getMonthData().groupTotals;
+        let groupLabels = Object.keys(groups);
+        // Sort groups by total hours descending
+        groupLabels = groupLabels.sort((a, b) => (groups[b] || 0) - (groups[a] || 0));
+        const groupData = groupLabels.map(g => +(groups[g] / 3600).toFixed(2)); // hours
+        groupsChartRef.current = new window.Chart(groupsCtx, {
             type: 'bar',
             data: {
-                labels: projectLabels,
+                labels: groupLabels,
                 datasets: [{
-                    label: 'Hours per project',
-                    data: projectData,
+                    label: 'Hours per group',
+                    data: groupData,
                     backgroundColor: '#10b981',
                     borderRadius: 6,
                 }]
@@ -161,28 +186,43 @@ function App() {
                 },
                 scales: {
                     x: { title: { display: true, text: 'Hours' }, beginAtZero: true },
-                    y: { title: { display: true, text: 'Project' } }
+                    y: {
+                        title: { display: true, text: 'Group' },
+                        ticks: {
+                            // Make sure labels are fully visible
+                            autoSkip: false,
+                            maxRotation: 0,
+                            minRotation: 0
+                        }
+                    }
                 },
                 responsive: true,
                 maintainAspectRatio: false,
             },
             plugins: window.ChartDataLabels ? [window.ChartDataLabels] : []
         });
+
+        // Update groups chart height based on number of groups
+        if (groupLabels.length > 0) {
+            const groupContainerHeight = Math.max(220, groupLabels.length * 40);
+            document.getElementById('groups-chart-container').style.height = `${groupContainerHeight}px`;
+        }
+
         return () => {
             if (daysChartRef.current) daysChartRef.current.destroy();
-            if (projectsChartRef.current) projectsChartRef.current.destroy();
+            if (groupsChartRef.current) groupsChartRef.current.destroy();
         };
-    }, [tab, reportMonth, projects, selectedProjects]);
+    }, [tab, reportMonth, groups, selectedGroups]);
 
-    // 2. Update addProject to include archived: false
-    function addProject(e) {
+    // 2. Update addGroup to include archived: false
+    function addGroup(e) {
         e.preventDefault();
-        if (!newProject.trim()) return;
-        setProjects([
-            ...projects,
-            { name: newProject.trim(), logs: [], running: false, startedAt: null, archived: false }
+        if (!newGroup.trim()) return;
+        setGroups([
+            ...groups,
+            { name: newGroup.trim(), logs: [], running: false, startedAt: null, archived: false }
         ]);
-        setNewProject('');
+        setNewGroup('');
         if (localStorage.getItem('demoMode')) {
             localStorage.removeItem('demoMode');
             setDemoMode(false);
@@ -190,28 +230,28 @@ function App() {
     }
 
     function startTimer(idx) {
-        setProjects(projects =>
-            projects.map((p, i) =>
+        setGroups(groups =>
+            groups.map((g, i) =>
                 i === idx
-                    ? { ...p, running: true, startedAt: Date.now() }
-                    : p
+                    ? { ...g, running: true, startedAt: Date.now() }
+                    : g
             )
         );
     }
 
     function stopTimer(idx) {
-        setProjects(projects =>
-            projects.map((p, i) => {
-                if (i !== idx || !p.running) return p;
+        setGroups(groups =>
+            groups.map((g, i) => {
+                if (i !== idx || !g.running) return g;
                 const now = Date.now();
-                const duration = Math.floor((now - p.startedAt) / 1000);
+                const duration = Math.floor((now - g.startedAt) / 1000);
                 return {
-                    ...p,
+                    ...g,
                     running: false,
                     startedAt: null,
                     logs: [
-                        { start: p.startedAt, end: now, duration },
-                        ...p.logs
+                        { start: g.startedAt, end: now, duration },
+                        ...g.logs
                     ]
                 };
             })
@@ -236,7 +276,7 @@ function App() {
 
     // Export as JSON (download from local data)
     function exportJSON() {
-        const dataStr = JSON.stringify({ projects }, null, 2);
+        const dataStr = JSON.stringify({ groups }, null, 2);
         const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
         const exportFileDefaultName = 'timelogger_data.json';
         const linkElement = document.createElement('a');
@@ -247,17 +287,17 @@ function App() {
 
     // Export as CSV (download from local data)
     function exportCSV() {
-        // Aggregate logs by project and day
+        // Aggregate logs by group and day
         const aggregatedData = {};
 
-        projects.forEach(p => {
-            (p.logs || []).forEach(log => {
+        groups.forEach(g => {
+            (g.logs || []).forEach(log => {
                 const date = new Date(log.start).toISOString().slice(0, 10);
-                const key = `${p.name}|${date}`;
+                const key = `${g.name}|${date}`;
 
                 if (!aggregatedData[key]) {
                     aggregatedData[key] = {
-                        project: p.name,
+                        group: g.name,
                         date: date,
                         totalDuration: 0
                     };
@@ -267,12 +307,12 @@ function App() {
             });
         });
 
-        let csv = 'Project,Date,Duration (hours)\n';
+        let csv = 'Group,Date,Duration (hours)\n';
 
         // Convert aggregated data to CSV
         Object.values(aggregatedData).forEach(entry => {
             const hours = (entry.totalDuration / 3600).toFixed(2);
-            csv += `"${entry.project}","${entry.date}",${hours}\n`;
+            csv += `"${entry.group}","${entry.date}",${hours}\n`;
         });
 
         const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -291,8 +331,8 @@ function App() {
         reader.onload = evt => {
             try {
                 const data = JSON.parse(evt.target.result);
-                if (data.projects && Array.isArray(data.projects)) {
-                    setProjects(data.projects);
+                if (data.groups && Array.isArray(data.groups)) {
+                    setGroups(data.groups);
                     if (localStorage.getItem('demoMode')) {
                         localStorage.removeItem('demoMode');
                         setDemoMode(false);
@@ -333,41 +373,44 @@ function App() {
             return;
         }
         const duration = Math.floor((endDate - startDate) / 1000);
-        setProjects(projects =>
-            projects.map((p, i) =>
+        setGroups(groups =>
+            groups.map((g, i) =>
                 i === manualIdx
                     ? {
-                        ...p,
+                        ...g,
                         logs: [
                             { start: startDate.getTime(), end: endDate.getTime(), duration },
-                            ...p.logs
+                            ...g.logs
                         ]
                     }
-                    : p
+                    : g
             )
         );
         closeManualForm();
     }
 
-    function deleteProject(idx) {
-        if (window.confirm('Are you sure you want to delete this project and all its logs?')) {
-            setProjects(projects => projects.filter((_, i) => i !== idx));
+    function deleteGroup(idx) {
+        if (window.confirm('Are you sure you want to delete this group and all its logs?')) {
+            setGroups(groups => groups.filter((_, i) => i !== idx));
         }
     }
 
-    function deleteLog(projectIdx, logIdx) {
+    function deleteLog(groupIdx, logIdx) {
         // Delete immediately, no confirmation
-        setProjects(projects =>
-            projects.map((p, i) =>
-                i === projectIdx
-                    ? { ...p, logs: p.logs.filter((_, j) => j !== logIdx) }
-                    : p
+        setGroups(groups =>
+            groups.map((g, i) =>
+                i === groupIdx
+                    ? { ...g, logs: g.logs.filter((_, j) => j !== logIdx) }
+                    : g
             )
         );
     }
 
     function toggleMenu() { setMenuOpen(open => !open); }
     function closeMenu() { setMenuOpen(false); }
+
+    // Add function to toggle info dialog
+    function toggleInfo() { setInfoOpen(open => !open); }
 
     function changeMonth(offset) {
         const [year, month] = reportMonth.split('-').map(Number);
@@ -376,43 +419,50 @@ function App() {
     }
 
     // Calculate reporting data
-    function getMonthData(selectedProjs = selectedProjects) {
+    function getMonthData(selectedProjs = selectedGroups) {
         const [year, month] = reportMonth.split('-').map(Number);
         const start = new Date(year, month - 1, 1).getTime();
         const end = new Date(year, month, 1).getTime();
         let totalSeconds = 0;
-        const projectsSet = new Set();
+        const groupsSet = new Set();
         const days = {};
-        const projectTotals = {};
+        const groupTotals = {};
+
+        // Initialize all days in the month with zero duration
+        const daysInMonth = new Date(year, month, 0).getDate();
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            days[dayStr] = 0;
+        }
 
         // Handle both legacy 'all' string and empty array as "all projects"
         const showAllProjects = selectedProjs.length === 0 ||
             (selectedProjs.length === 1 && selectedProjs[0] === 'all');
 
-        projects.forEach(p => {
+        groups.forEach(g => {
             // Skip archived projects in reporting
-            if (p.archived) return;
+            if (g.archived) return;
 
             // Filter by selected projects
-            if (!showAllProjects && !selectedProjs.includes(p.name)) return;
+            if (!showAllProjects && !selectedProjs.includes(g.name)) return;
 
-            p.logs.forEach(log => {
+            g.logs.forEach(log => {
                 if (log.start >= start && log.start < end) {
                     totalSeconds += log.duration;
-                    projectsSet.add(p.name);
+                    groupsSet.add(g.name);
                     // Per day
                     const day = new Date(log.start).toISOString().slice(0, 10);
                     days[day] = (days[day] || 0) + log.duration;
                     // Per project
-                    projectTotals[p.name] = (projectTotals[p.name] || 0) + log.duration;
+                    groupTotals[g.name] = (groupTotals[g.name] || 0) + log.duration;
                 }
             });
         });
         return {
             totalSeconds,
-            projectCount: projectsSet.size,
+            groupCount: groupsSet.size,
             days,
-            projectTotals
+            groupTotals
         };
     }
     // Calculate current month data with the current selection state
@@ -432,20 +482,20 @@ function App() {
         doc.setFontSize(12);
 
         // Show selected projects
-        if (selectedProjects.length === 0 || (selectedProjects.length === 1 && selectedProjects[0] === 'all')) {
-            doc.text('Projects: All projects', 40, 100);
+        if (selectedGroups.length === 0 || (selectedGroups.length === 1 && selectedGroups[0] === 'all')) {
+            doc.text('Groups: All groups', 40, 100);
         } else {
-            doc.text('Projects: ' + selectedProjects.join(', '), 40, 100);
+            doc.text('Groups: ' + selectedGroups.join(', '), 40, 100);
         }
 
         // Indicators
         doc.setFontSize(12);
         doc.text('Total time this month: ' + formatDurationHM(monthData.totalSeconds), 40, 120);
-        doc.text('Projects worked on: ' + monthData.projectCount, 40, 140);
+        doc.text('Groups worked on: ' + monthData.groupCount, 40, 140);
         // Charts
         // Use html2canvas to render the chart canvases
         const daysCanvas = document.getElementById('days-bar-chart');
-        const projectsCanvas = document.getElementById('projects-bar-chart');
+        const groupsCanvas = document.getElementById('groups-bar-chart');
         let y = 170;
         if (daysCanvas) {
             const imgData = await window.html2canvas(daysCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
@@ -453,9 +503,9 @@ function App() {
             doc.addImage(imgData, 'PNG', 40, y + 10, 480, 180);
             y += 200;
         }
-        if (projectsCanvas) {
-            const imgData2 = await window.html2canvas(projectsCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
-            doc.text('Time per project', 40, y);
+        if (groupsCanvas) {
+            const imgData2 = await window.html2canvas(groupsCanvas, { backgroundColor: null }).then(canvas => canvas.toDataURL('image/png'));
+            doc.text('Time per group', 40, y);
             doc.addImage(imgData2, 'PNG', 40, y + 10, 480, 180);
         }
         doc.save('monthly_report.pdf');
@@ -468,28 +518,28 @@ function App() {
         const end = new Date(year, month, 1).getTime();
 
         // Handle both legacy 'all' string and empty array as "all projects"
-        const showAllProjects = selectedProjects.length === 0 ||
-            (selectedProjects.length === 1 && selectedProjects[0] === 'all');
+        const showAllProjects = selectedGroups.length === 0 ||
+            (selectedGroups.length === 1 && selectedGroups[0] === 'all');
 
         // Aggregate logs by project and day
         const aggregatedData = {};
 
-        projects.forEach(p => {
+        groups.forEach(g => {
             // Skip archived projects
-            if (p.archived) return;
+            if (g.archived) return;
 
             // Filter by selected projects
-            if (!showAllProjects && !selectedProjects.includes(p.name)) return;
+            if (!showAllProjects && !selectedGroups.includes(g.name)) return;
 
-            (p.logs || []).forEach(log => {
+            (g.logs || []).forEach(log => {
                 // Filter by selected month
                 if (log.start >= start && log.start < end) {
                     const date = new Date(log.start).toISOString().slice(0, 10);
-                    const key = `${p.name}|${date}`;
+                    const key = `${g.name}|${date}`;
 
                     if (!aggregatedData[key]) {
                         aggregatedData[key] = {
-                            project: p.name,
+                            group: g.name,
                             date: date,
                             totalDuration: 0
                         };
@@ -500,12 +550,12 @@ function App() {
             });
         });
 
-        let csv = 'Project,Date,Duration (hours)\n';
+        let csv = 'Group,Date,Duration (hours)\n';
 
         // Convert aggregated data to CSV
         Object.values(aggregatedData).forEach(entry => {
             const hours = (entry.totalDuration / 3600).toFixed(2);
-            csv += `"${entry.project}","${entry.date}",${hours}\n`;
+            csv += `"${entry.group}","${entry.date}",${hours}\n`;
         });
 
         const fileName = `monthly_report_${reportMonth}.csv`;
@@ -517,11 +567,11 @@ function App() {
     }
 
     // Helper to check for overlapping logs in a list
-    function findOverlappingLogs(projects) {
+    function findOverlappingLogs(groups) {
         const allLogs = [];
-        projects.forEach((p) => {
-            (p.logs || []).forEach(log => {
-                allLogs.push({ ...log, project: p.name });
+        groups.forEach((g) => {
+            (g.logs || []).forEach(log => {
+                allLogs.push({ ...log, group: g.name });
             });
         });
         allLogs.sort((a, b) => a.start - b.start);
@@ -529,7 +579,7 @@ function App() {
         for (let i = 0; i < allLogs.length; i++) {
             for (let j = i + 1; j < allLogs.length; j++) {
                 if (allLogs[j].start >= allLogs[i].end) break;
-                if (allLogs[i].project !== allLogs[j].project) {
+                if (allLogs[i].group !== allLogs[j].group) {
                     overlaps.push({
                         first: allLogs[i],
                         second: allLogs[j]
@@ -540,23 +590,23 @@ function App() {
         return overlaps;
     }
 
-    const overlapping = findOverlappingLogs(projects);
+    const overlapping = findOverlappingLogs(groups);
 
     // 3. Archive/unarchive functions
-    function archiveProject(idx) {
-        setProjects(projects =>
-            projects.map((p, i) => i === idx ? { ...p, archived: true, running: false, startedAt: null } : p)
+    function archiveGroup(idx) {
+        setGroups(groups =>
+            groups.map((g, i) => i === idx ? { ...g, archived: true, running: false, startedAt: null } : g)
         );
     }
-    function unarchiveProject(idx) {
-        setProjects(projects =>
-            projects.map((p, i) => i === idx ? { ...p, archived: false } : p)
+    function unarchiveGroup(idx) {
+        setGroups(groups =>
+            groups.map((g, i) => i === idx ? { ...g, archived: false } : g)
         );
     }
 
     // 4. In the log tab UI, split projects into active and archived
-    const activeProjects = projects.filter(p => !p.archived);
-    const archivedProjects = projects.filter(p => p.archived);
+    const activeGroups = groups.filter(g => !g.archived);
+    const archivedGroups = groups.filter(g => g.archived);
 
     // Demo mode: load sample data into localStorage and state
     function enterDemoMode() {
@@ -578,8 +628,8 @@ function App() {
                     return res.json();
                 })
                 .then(data => {
-                    setProjects(data.projects || []);
-                    localStorage.setItem('projects', JSON.stringify(data.projects || []));
+                    setGroups(data.groups || []);
+                    localStorage.setItem('groups', JSON.stringify(data.groups || []));
                     localStorage.setItem('demoMode', '1');
                     setDemoMode(true);
                     setDemoBanner(false);
@@ -601,7 +651,7 @@ function App() {
     }
     // Exit demo mode: clear localStorage and reload
     function exitDemoMode() {
-        localStorage.removeItem('projects');
+        localStorage.removeItem('groups');
         localStorage.removeItem('demoMode');
         window.location.reload();
     }
@@ -695,7 +745,133 @@ function App() {
                         }, 'Export CSV')
                     )
                 ),
-                React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger")
+                React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger"),
+                React.createElement('button', {
+                    className: 'btn info-btn',
+                    onClick: toggleInfo,
+                    'aria-label': 'Show app information',
+                    'data-tooltip': 'About this app',
+                    type: 'button'
+                }, React.createElement('i', { className: 'bi bi-info-circle', style: { fontSize: '20px', color: '#374151' } })),
+            ),
+            // Info dialog
+            infoOpen && React.createElement('div', {
+                className: 'modal-overlay',
+                onClick: toggleInfo,
+                style: {
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 100
+                }
+            },
+                React.createElement('div', {
+                    className: 'info-dialog',
+                    onClick: (e) => e.stopPropagation(),
+                    style: {
+                        background: '#ffffff',
+                        border: '1.5px solid #94a3b8',
+                        borderRadius: 10,
+                        padding: '24px 28px',
+                        position: 'relative',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                        maxWidth: '550px',
+                        width: '90%',
+                        maxHeight: '90vh',
+                        overflowY: 'auto'
+                    }
+                },
+                    React.createElement('button', {
+                        className: 'close-info-btn',
+                        onClick: toggleInfo,
+                        'aria-label': 'Close information',
+                        style: {
+                            position: 'absolute',
+                            top: 16,
+                            right: 16,
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '20px',
+                            padding: 4,
+                            borderRadius: '50%',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }
+                    }, React.createElement('i', { className: 'bi bi-x', style: { fontSize: '24px', color: '#334155' } })),
+                    React.createElement('h2', { style: { margin: '0 0 16px 0', color: '#334155', fontSize: '1.4rem', fontWeight: '600' } }, "About Felix's Minimal Time Logger"),
+                    React.createElement('div', { style: { fontSize: '1rem', lineHeight: '1.6', color: '#475569' } },
+                        React.createElement('p', { style: { marginTop: 0 } }, "This is a minimalist time tracking application designed for simple group time management. Track work hours across different groups with a clean, distraction-free interface."),
+                        React.createElement('p', { style: { fontWeight: '500', marginBottom: '6px' } }, "✨ How to use:"),
+                        React.createElement('ul', { style: { paddingLeft: 22, margin: '8px 0 16px 0', listStyleType: 'none' } },
+                            React.createElement('li', { style: { marginBottom: '8px' } }, "1️⃣ Create a group using the 'Add' button"),
+                            React.createElement('li', { style: { marginBottom: '8px' } }, "2️⃣ Track time by clicking the green play button ▶️"),
+                            React.createElement('li', { style: { marginBottom: '8px' } }, "3️⃣ Add manual entries with the + button if needed"),
+                            React.createElement('li', { style: { marginBottom: '8px' } }, "4️⃣ Switch to Report tab to see your time statistics 📊"),
+                            React.createElement('li', { style: { marginBottom: '8px' } }, "5️⃣ Export your data using the menu ☰ in top-left")
+                        ),
+                        React.createElement('div', {
+                            style: {
+                                marginTop: 24,
+                                paddingTop: 16,
+                                borderTop: '1px solid #e2e8f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.95rem',
+                                color: '#64748b'
+                            }
+                        },
+                            'Created by ',
+                            React.createElement('a',
+                                {
+                                    href: 'https://bsky.app/profile/felixmil.com',
+                                    target: '_blank',
+                                    rel: 'noopener noreferrer',
+                                    style: {
+                                        color: '#2563eb',
+                                        textDecoration: 'none',
+                                        margin: '0 4px'
+                                    }
+                                },
+                                'Felix MIL ',
+                                React.createElement('i', {
+                                    className: 'bi bi-bluesky',
+                                    style: { color: '#0085ff', fontSize: '1.25rem', verticalAlign: 'middle' }
+                                })
+                            ),
+                            ' | ',
+                            React.createElement('a',
+                                {
+                                    href: 'https://github.com/Felixmil/minimal-time-logger',
+                                    target: '_blank',
+                                    rel: 'noopener noreferrer',
+                                    title: 'GitHub Repository',
+                                    style: {
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        color: '#2563eb',
+                                        textDecoration: 'none',
+                                        margin: '0 4px'
+                                    }
+                                },
+                                React.createElement('i', {
+                                    className: 'bi bi-github',
+                                    style: { color: '#24292e', fontSize: '1.35rem', verticalAlign: 'middle' }
+                                })
+                            )
+                        )
+                    )
+                )
             ),
             // Tab navigation
             React.createElement('div', { className: 'tab-bar' },
@@ -726,70 +902,71 @@ function App() {
                         React.createElement('ul', { style: { margin: '10px 0 0 0', paddingLeft: 18, fontWeight: 400, fontSize: '0.98rem' } },
                             overlapping.map((o, i) =>
                                 React.createElement('li', { key: i },
-                                    `Project: ${o.first.project} — ` +
+                                    `Group: ${o.first.group} — ` +
                                     `${new Date(o.first.start).toLocaleString()} - ${new Date(o.first.end).toLocaleTimeString()} overlaps with ` +
-                                    `Project: ${o.second.project} — ` +
+                                    `Group: ${o.second.group} — ` +
                                     `${new Date(o.second.start).toLocaleString()} - ${new Date(o.second.end).toLocaleTimeString()}`
                                 )
                             )
                         )
                     ),
-                    React.createElement('form', { onSubmit: addProject, className: 'add-form' },
+                    React.createElement('form', { onSubmit: addGroup, className: 'add-form' },
                         React.createElement('input', {
-                            value: newProject,
-                            onChange: e => setNewProject(e.target.value),
-                            placeholder: 'Add project...',
+                            value: newGroup,
+                            onChange: e => setNewGroup(e.target.value),
+                            placeholder: 'Add group...',
                             className: 'input'
                         }),
                         React.createElement('button', {
                             type: 'submit',
                             className: 'btn',
-                            'data-tooltip': 'Create a new project'
+                            'data-tooltip': 'Create a new group'
                         }, 'Add')
                     ),
                     loading
                         ? React.createElement('p', { className: 'empty' }, 'Loading...')
-                        : activeProjects.length === 0 && React.createElement('p', { className: 'empty' }, 'No projects yet.'),
-                    activeProjects.length > 0 && activeProjects.map((p, idx) =>
+                        : activeGroups.length === 0 && React.createElement('p', { className: 'empty' }, 'No groups yet.'),
+                    activeGroups.length > 0 && activeGroups.map((g, idx) =>
                         React.createElement('div', { key: idx, className: 'project' },
                             React.createElement('div', { className: 'project-header' },
-                                React.createElement('span', { className: 'project-name' }, p.name),
+                                React.createElement('span', { className: 'project-name' }, g.name),
                                 React.createElement('button', {
-                                    className: 'btn play-btn' + (p.running ? ' running' : ''),
-                                    onClick: p.running ? () => stopTimer(projects.indexOf(p)) : () => startTimer(projects.indexOf(p)),
-                                    'data-tooltip': p.running ? 'Stop the timer' : 'Start timing for this project',
-                                    title: p.running ? 'Stop timer' : 'Start timer'
+                                    className: 'btn play-btn' + (g.running ? ' running' : ''),
+                                    onClick: g.running ? () => stopTimer(groups.indexOf(g)) : () => startTimer(groups.indexOf(g)),
+                                    'data-tooltip': g.running ? 'Stop the timer' : 'Start timing for this group',
+                                    title: g.running ? 'Stop timer' : 'Start timer'
                                 },
-                                    p.running
-                                        ? formatDuration(Math.floor((Date.now() - p.startedAt) / 1000))
+                                    g.running
+                                        ? formatDuration(Math.floor((Date.now() - g.startedAt) / 1000))
                                         : React.createElement('i', { className: 'bi bi-play-fill', style: { color: '#1a7f4f' } })
                                 ),
                                 React.createElement('button', {
                                     className: 'btn add-entry',
-                                    onClick: () => openManualForm(projects.indexOf(p)),
+                                    onClick: () => openManualForm(groups.indexOf(g)),
                                     'data-tooltip': 'Add a manual time entry',
-                                    title: 'Add manual entry'
-                                }, 'Add Entry'),
+                                    title: 'Add manual entry',
+                                    style: { marginLeft: 4 }
+                                }, React.createElement('i', { className: 'bi bi-plus', style: { fontSize: '20px', color: '#374151' } })),
                                 React.createElement('button', {
                                     className: 'btn archive-btn-square',
-                                    onClick: () => archiveProject(projects.indexOf(p)),
-                                    'data-tooltip': 'Archive this project',
-                                    title: 'Archive project',
+                                    onClick: () => archiveGroup(groups.indexOf(g)),
+                                    'data-tooltip': 'Archive this group',
+                                    title: 'Archive group',
                                     style: { marginLeft: 4 }
                                 },
                                     React.createElement('i', { className: 'bi bi-archive', style: { fontSize: '20px', color: '#374151' } })
                                 ),
                                 React.createElement('button', {
                                     className: 'btn delete-btn-square',
-                                    onClick: () => deleteProject(projects.indexOf(p)),
-                                    'data-tooltip': 'Delete this project',
-                                    title: 'Delete project',
+                                    onClick: () => deleteGroup(groups.indexOf(g)),
+                                    'data-tooltip': 'Delete this group',
+                                    title: 'Delete group',
                                     style: { marginLeft: 4 }
                                 },
                                     React.createElement('i', { className: 'bi bi-trash', style: { fontSize: '20px', color: '#374151' } })
                                 )
                             ),
-                            manualIdx === projects.indexOf(p) && React.createElement('form', {
+                            manualIdx === groups.indexOf(g) && React.createElement('form', {
                                 onSubmit: submitManualEntry,
                                 style: { display: 'flex', gap: 6, margin: '8px 0', alignItems: 'center', justifyContent: 'center' }
                             },
@@ -829,14 +1006,14 @@ function App() {
                                     'data-tooltip': 'Cancel without saving this entry'
                                 }, 'Cancel')
                             ),
-                            p.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
-                                p.logs.map((log, i) =>
+                            g.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
+                                g.logs.map((log, i) =>
                                     React.createElement('li', { key: i, className: 'log-item indented' },
                                         React.createElement('button', {
                                             className: 'delete-log-btn',
                                             title: 'Delete entry',
                                             'data-tooltip': 'Delete this time entry',
-                                            onClick: () => deleteLog(projects.indexOf(p), i)
+                                            onClick: () => deleteLog(groups.indexOf(g), i)
                                         }, '\u00D7'),
                                         new Date(log.start).toLocaleString(),
                                         ' — ',
@@ -847,44 +1024,45 @@ function App() {
                         )
                     ),
                     // Archived section
-                    archivedProjects.length > 0 && React.createElement('div', { style: { marginTop: 32 } },
+                    archivedGroups.length > 0 && React.createElement('div', { style: { marginTop: 32 } },
                         React.createElement('button', {
                             className: 'btn',
                             style: { width: '100%', background: '#f3f3f3', color: '#888', marginBottom: 8 },
                             onClick: () => setArchivedOpen(open => !open),
-                            'data-tooltip': archivedOpen ? 'Hide archived projects' : 'Show your archived projects'
+                            'data-tooltip': archivedOpen ? 'Hide archived groups' : 'Show your archived groups'
                         },
-                            archivedOpen ? 'Hide Archived Projects' : `Show Archived Projects (${archivedProjects.length})`
+                            archivedOpen ? 'Hide Archived Groups' : `Show Archived Groups (${archivedGroups.length})`
                         ),
-                        archivedOpen && archivedProjects.map((p, idx) =>
+                        archivedOpen && archivedGroups.map((g, idx) =>
                             React.createElement('div', { key: idx, className: 'project', style: { opacity: 0.7 } },
                                 React.createElement('div', { className: 'project-header' },
-                                    React.createElement('span', { className: 'project-name' }, p.name),
+                                    React.createElement('span', { className: 'project-name' }, g.name),
                                     React.createElement('button', {
                                         className: 'btn unarchive-btn',
-                                        onClick: () => unarchiveProject(projects.indexOf(p)),
-                                        title: 'Unarchive project',
-                                        'data-tooltip': 'Restore this project',
+                                        onClick: () => unarchiveGroup(groups.indexOf(g)),
+                                        title: 'Unarchive group',
+                                        'data-tooltip': 'Restore this group',
                                         style: { marginLeft: 4 }
                                     },
                                         React.createElement('i', { className: 'bi bi-arrow-up-square', style: { fontSize: '20px', color: '#374151' } })
                                     ),
                                     React.createElement('button', {
                                         className: 'btn delete-btn-square',
-                                        onClick: () => deleteProject(projects.indexOf(p)),
-                                        title: 'Delete project',
+                                        onClick: () => deleteGroup(groups.indexOf(g)),
+                                        'data-tooltip': 'Delete this group',
+                                        title: 'Delete group',
                                         style: { marginLeft: 4 }
                                     },
                                         React.createElement('i', { className: 'bi bi-trash', style: { fontSize: '20px', color: '#374151' } })
                                     )
                                 ),
-                                p.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
-                                    p.logs.map((log, i) =>
+                                g.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
+                                    g.logs.map((log, i) =>
                                         React.createElement('li', { key: i, className: 'log-item indented' },
                                             React.createElement('button', {
                                                 className: 'delete-log-btn',
                                                 title: 'Delete entry',
-                                                onClick: () => deleteLog(projects.indexOf(p), i)
+                                                onClick: () => deleteLog(groups.indexOf(g), i)
                                             }, '\u00D7'),
                                             new Date(log.start).toLocaleString(),
                                             ' — ',
@@ -901,7 +1079,7 @@ function App() {
                 React.createElement('div', null,
                     // Project multi-select UI
                     React.createElement('div', { style: { marginBottom: 12 } },
-                        React.createElement('label', { style: { fontWeight: 500, display: 'block', marginBottom: 8, textAlign: 'center' } }, 'Select Projects:'),
+                        React.createElement('label', { style: { fontWeight: 500, display: 'block', marginBottom: 8, textAlign: 'center' } }, 'Select Groups:'),
                         React.createElement('div', {
                             style: {
                                 display: 'flex',
@@ -915,38 +1093,38 @@ function App() {
                         },
                             // "All" option
                             React.createElement('div', {
-                                className: (selectedProjects.length === 0 || (selectedProjects.length === 1 && selectedProjects[0] === 'all')
+                                className: (selectedGroups.length === 0 || (selectedGroups.length === 1 && selectedGroups[0] === 'all')
                                     ? 'project-tag selected'
                                     : 'project-tag') + ' tooltip-wide',
-                                onClick: () => setSelectedProjects(['all']),
-                                'data-tooltip': 'Show data from all active projects'
-                            }, 'All projects'),
+                                onClick: () => setSelectedGroups(['all']),
+                                'data-tooltip': 'Show data from all active groups'
+                            }, 'All groups'),
 
                             // Individual project options sorted alphabetically
-                            [...activeProjects]
+                            [...activeGroups]
                                 .sort((a, b) => a.name.localeCompare(b.name))
-                                .map(p =>
+                                .map(g =>
                                     React.createElement('div', {
-                                        key: p.name,
-                                        className: (selectedProjects.includes(p.name) ? 'project-tag selected' : 'project-tag') + ' tooltip-wide',
+                                        key: g.name,
+                                        className: (selectedGroups.includes(g.name) ? 'project-tag selected' : 'project-tag') + ' tooltip-wide',
                                         onClick: () => {
                                             // If "all" is selected, clear it first
-                                            const currentSelected = selectedProjects.filter(proj => proj !== 'all');
+                                            const currentSelected = selectedGroups.filter(proj => proj !== 'all');
 
-                                            if (currentSelected.includes(p.name)) {
+                                            if (currentSelected.includes(g.name)) {
                                                 // Remove the project if already selected
-                                                setSelectedProjects(
-                                                    currentSelected.filter(proj => proj !== p.name)
+                                                setSelectedGroups(
+                                                    currentSelected.filter(proj => proj !== g.name)
                                                 );
                                             } else {
                                                 // Add the project to selection
-                                                setSelectedProjects([...currentSelected, p.name]);
+                                                setSelectedGroups([...currentSelected, g.name]);
                                             }
                                         },
-                                        'data-tooltip': selectedProjects.includes(p.name)
-                                            ? `Click to remove ${p.name} from selection`
-                                            : `Click to add ${p.name} to selection`
-                                    }, p.name)
+                                        'data-tooltip': selectedGroups.includes(g.name)
+                                            ? `Click to remove ${g.name} from selection`
+                                            : `Click to add ${g.name} to selection`
+                                    }, g.name)
                                 )
                         )
                     ),
@@ -976,9 +1154,9 @@ function App() {
                         ),
                         React.createElement('div', { style: { textAlign: 'center' } },
                             React.createElement('div', { style: { fontSize: '2rem', fontWeight: 600 } },
-                                monthData.projectCount
+                                monthData.groupCount
                             ),
-                            React.createElement('div', { style: { color: '#888', fontSize: '1rem' } }, 'Projects worked on')
+                            React.createElement('div', { style: { color: '#888', fontSize: '1rem' } }, 'Groups worked on')
                         )
                     ),
                     // Charts
@@ -986,8 +1164,8 @@ function App() {
                         React.createElement('div', { style: { width: '100%', maxWidth: "90%" } },
                             React.createElement('canvas', { id: 'days-bar-chart', height: 220 })
                         ),
-                        React.createElement('div', { style: { width: '100%', maxWidth: "90%" } },
-                            React.createElement('canvas', { id: 'projects-bar-chart', height: 220 })
+                        React.createElement('div', { id: 'groups-chart-container', style: { width: '100%', maxWidth: "90%" } },
+                            React.createElement('canvas', { id: 'groups-bar-chart' })
                         )
                     ),
                     React.createElement('div', { style: { width: '100%', display: 'flex', justifyContent: 'center', marginTop: 32, gap: 16 } },

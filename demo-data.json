@@ -1,32 +1,17 @@
 {
-    "projects": [
+    "groups": [
         {
-            "name": "Client Website Redesign",
+            "name": "PKSim Model Development",
             "logs": [
                 {
-                    "start": 1743792000000,
-                    "end": 1743795600000,
-                    "duration": 3600
+                    "start": 1746172800000,
+                    "end": 1746183600000,
+                    "duration": 10800
                 },
                 {
-                    "start": 1743878400000,
-                    "end": 1743882000000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1743964800000,
-                    "end": 1743968400000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1742054400000,
-                    "end": 1742058000000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1742140800000,
-                    "end": 1742144400000,
-                    "duration": 3600
+                    "start": 1747555200000,
+                    "end": 1747566000000,
+                    "duration": 10800
                 }
             ],
             "running": false,
@@ -34,90 +19,168 @@
             "archived": false
         },
         {
-            "name": "Personal Blog Writing",
+            "name": "Data Analysis - Clinical Trial",
             "logs": [
                 {
-                    "start": 1743885600000,
-                    "end": 1743887400000,
-                    "duration": 1800
-                },
-                {
-                    "start": 1743972000000,
-                    "end": 1743973800000,
-                    "duration": 1800
-                },
-                {
-                    "start": 1742227200000,
-                    "end": 1742230800000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1742313600000,
-                    "end": 1742315400000,
-                    "duration": 1800
-                }
-            ],
-            "running": false,
-            "startedAt": null,
-            "archived": false
-        },
-        {
-            "name": "Online Course: React Mastery",
-            "logs": [
-                {
-                    "start": 1743802800000,
-                    "end": 1743806400000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1743892800000,
-                    "end": 1743894600000,
-                    "duration": 1800
-                },
-                {
-                    "start": 1742400000000,
-                    "end": 1742403600000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1742486400000,
-                    "end": 1742490000000,
-                    "duration": 3600
-                }
-            ],
-            "running": false,
-            "startedAt": null,
-            "archived": false
-        },
-        {
-            "name": "Vacation Planning",
-            "logs": [
-                {
-                    "start": 1743810000000,
-                    "end": 1743811800000,
-                    "duration": 1800
-                },
-                {
-                    "start": 1742572800000,
-                    "end": 1742576400000,
-                    "duration": 3600
-                }
-            ],
-            "running": false,
-            "startedAt": null,
-            "archived": true
-        },
-        {
-            "name": "Old Freelance Project",
-            "logs": [
-                {
-                    "start": 1743705600000,
-                    "end": 1743712800000,
+                    "start": 1746691200000,
+                    "end": 1746698400000,
                     "duration": 7200
                 },
                 {
-                    "start": 1742659200000,
-                    "end": 1742662800000,
+                    "start": 1748332800000,
+                    "end": 1748340000000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Parameter Optimization",
+            "logs": [
+                {
+                    "start": 1747296000000,
+                    "end": 1747303200000,
+                    "duration": 7200
+                },
+                {
+                    "start": 1747900800000,
+                    "end": 1747908000000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Literature Review",
+            "logs": [
+                {
+                    "start": 1746777600000,
+                    "end": 1746784800000,
+                    "duration": 7200
+                },
+                {
+                    "start": 1748073600000,
+                    "end": 1748080800000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Scientific Manuscript Writing",
+            "logs": [
+                {
+                    "start": 1746950400000,
+                    "end": 1746957600000,
+                    "duration": 7200
+                },
+                {
+                    "start": 1747641600000,
+                    "end": 1747648800000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Team Meetings",
+            "logs": [
+                {
+                    "start": 1746518400000,
+                    "end": 1746522000000,
+                    "duration": 3600
+                },
+                {
+                    "start": 1748160000000,
+                    "end": 1748163600000,
+                    "duration": 3600
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Sensitivity Analysis",
+            "logs": [
+                {
+                    "start": 1746605000000,
+                    "end": 1746608600000,
+                    "duration": 3600
+                },
+                {
+                    "start": 1748419200000,
+                    "end": 1748426400000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Biomarker Simulation",
+            "logs": [
+                {
+                    "start": 1747036800000,
+                    "end": 1747044000000,
+                    "duration": 7200
+                },
+                {
+                    "start": 1748592000000,
+                    "end": 1748599200000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "PK/PD Workshop Prep",
+            "logs": [
+                {
+                    "start": 1747468800000,
+                    "end": 1747476000000,
+                    "duration": 7200
+                },
+                {
+                    "start": 1747555200000,
+                    "end": 1747558800000,
+                    "duration": 3600
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Grant Writing",
+            "logs": [
+                {
+                    "start": 1747209600000,
+                    "end": 1747216800000,
+                    "duration": 7200
+                }
+            ],
+            "running": false,
+            "startedAt": null,
+            "archived": false
+        },
+        {
+            "name": "Pediatric PBPK Study",
+            "logs": [
+                {
+                    "start": 1747382400000,
+                    "end": 1747386000000,
                     "duration": 3600
                 }
             ],
@@ -126,73 +189,17 @@
             "archived": true
         },
         {
-            "name": "Team Meeting",
+            "name": "Legacy Model Conversion",
             "logs": [
                 {
-                    "start": 1744051200000,
-                    "end": 1744053000000,
-                    "duration": 1800
-                },
-                {
-                    "start": 1744137600000,
-                    "end": 1744141200000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1744224000000,
-                    "end": 1744225800000,
-                    "duration": 1800
+                    "start": 1747814400000,
+                    "end": 1747821600000,
+                    "duration": 7200
                 }
             ],
             "running": false,
             "startedAt": null,
-            "archived": false
-        },
-        {
-            "name": "App Testing & QA",
-            "logs": [
-                {
-                    "start": 1744310400000,
-                    "end": 1744314000000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1744396800000,
-                    "end": 1744400400000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1744483200000,
-                    "end": 1744486800000,
-                    "duration": 3600
-                }
-            ],
-            "running": false,
-            "startedAt": null,
-            "archived": false
-        },
-        {
-            "name": "Research & Learning",
-            "logs": [
-                {
-                    "start": 1744569600000,
-                    "end": 1744573200000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1744656000000,
-                    "end": 1744659600000,
-                    "duration": 3600
-                },
-                {
-                    "start": 1744742400000,
-                    "end": 1744746000000,
-                    "duration": 3600
-                }
-            ],
-            "running": false,
-            "startedAt": null,
-            "archived": false
+            "archived": true
         }
     ]
 }
