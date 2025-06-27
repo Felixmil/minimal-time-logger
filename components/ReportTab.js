@@ -1,5 +1,5 @@
 // Report tab component with charts and export functionality
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
 import { formatDurationHM, getMonthData } from './utils.js';
 
 export function ReportTab({
@@ -15,7 +15,11 @@ export function ReportTab({
     const groupsChartRef = useRef();
 
     const activeGroups = groups.filter(g => !g.archived);
-    const monthData = getMonthData(groups, selectedGroups, reportMonth);
+
+    // Memoize monthData calculation to prevent unnecessary re-renders
+    const monthData = useMemo(() => {
+        return getMonthData(groups, selectedGroups, reportMonth);
+    }, [groups, selectedGroups, reportMonth]);
 
     const changeMonth = (offset) => {
         const [year, month] = reportMonth.split('-').map(Number);
@@ -34,18 +38,31 @@ export function ReportTab({
         if (groupsChartRef.current) groupsChartRef.current.destroy();
 
         const days = monthData.days;
-        const dayLabels = Object.keys(days).sort();
-        const dayData = dayLabels.map(d => +(days[d] / 3600).toFixed(2)); // hours
-        const formattedDayLabels = dayLabels.map(d => parseInt(d.split('-')[2], 10));
+
+        // Generate all days of the month to show complete timeline
+        const [year, month] = reportMonth.split('-').map(Number);
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const allDayLabels = [];
+        const allDayData = [];
+        const fullDayLabels = []; // For tooltip display
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const hours = days[dayKey] ? +(days[dayKey] / 3600).toFixed(2) : 0;
+
+            allDayLabels.push(day);
+            allDayData.push(hours);
+            fullDayLabels.push(dayKey);
+        }
 
         // Days chart
         daysChartRef.current = new window.Chart(daysCtx, {
             type: 'bar',
             data: {
-                labels: formattedDayLabels,
+                labels: allDayLabels,
                 datasets: [{
                     label: 'Hours per day',
-                    data: dayData,
+                    data: allDayData,
                     backgroundColor: '#2563eb',
                     borderRadius: 6,
                 }]
@@ -59,7 +76,7 @@ export function ReportTab({
                         callbacks: {
                             title: (tooltipItems) => {
                                 const idx = tooltipItems[0].dataIndex;
-                                return dayLabels[idx];
+                                return fullDayLabels[idx];
                             }
                         }
                     },
@@ -78,12 +95,25 @@ export function ReportTab({
                     x: {
                         title: { display: true, text: 'Day' },
                         ticks: {
+                            autoSkip: false, // Show all day labels
+                            maxTicksLimit: daysInMonth, // Allow all days to be shown
+                            maxRotation: 0, // Keep day numbers horizontal
+                            minRotation: 0, // Prevent any rotation
                             callback: function (value, index) {
-                                return formattedDayLabels[index];
+                                return allDayLabels[index];
                             }
+                        },
+                        grid: {
+                            display: false // Remove all vertical grid lines
                         }
                     },
-                    y: { title: { display: true, text: 'Hours' }, beginAtZero: true }
+                    y: {
+                        title: { display: true, text: 'Hours' },
+                        beginAtZero: true,
+                        grid: {
+                            color: '#f0f0f0' // Keep horizontal grid lines
+                        }
+                    }
                 },
                 responsive: true,
                 maintainAspectRatio: false,
@@ -95,7 +125,34 @@ export function ReportTab({
         const groupTotals = monthData.groupTotals;
         let groupLabels = Object.keys(groupTotals);
         groupLabels = groupLabels.sort((a, b) => (groupTotals[b] || 0) - (groupTotals[a] || 0));
-        const groupData = groupLabels.map(g => +(groupTotals[g] / 3600).toFixed(2)); // hours
+        const groupData = groupLabels.map(g => +(groupTotals[g] / 3600).toFixed(2));
+
+        // Helper function to split long group names into multiple lines
+        const splitLongLabel = (label, maxCharsPerLine = 20) => {
+            if (label.length <= maxCharsPerLine) return [label];
+
+            const words = label.split(' ');
+            const lines = [];
+            let currentLine = '';
+
+            words.forEach(word => {
+                if ((currentLine + ' ' + word).length <= maxCharsPerLine) {
+                    currentLine = currentLine ? currentLine + ' ' + word : word;
+                } else {
+                    if (currentLine) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        // Word itself is too long, split it
+                        lines.push(word.substring(0, maxCharsPerLine));
+                        currentLine = word.substring(maxCharsPerLine);
+                    }
+                }
+            });
+
+            if (currentLine) lines.push(currentLine);
+            return lines;
+        };
 
         groupsChartRef.current = new window.Chart(groupsCtx, {
             type: 'bar',
@@ -130,9 +187,14 @@ export function ReportTab({
                         ticks: {
                             autoSkip: false,
                             maxRotation: 0,
+                            font: {
+                                size: Math.max(8, 12 - Math.floor(groupLabels.length / 5)) // Reduce font size based on number of groups
+                            },
                             callback: function (value, index) {
                                 const label = this.getLabelForValue(value);
-                                return label.length > 15 ? label.substring(0, 15) + '...' : label;
+                                // Split long labels into multiple lines
+                                const lines = splitLongLabel(label, 25);
+                                return lines;
                             }
                         }
                     }
@@ -230,7 +292,15 @@ export function ReportTab({
             React.createElement('div', { style: { width: '100%', maxWidth: "90%" } },
                 React.createElement('canvas', { id: 'days-bar-chart', height: 220 })
             ),
-            React.createElement('div', { id: 'groups-chart-container', style: { width: '100%', maxWidth: "90%" } },
+            React.createElement('div', {
+                id: 'groups-chart-container',
+                style: {
+                    width: '100%',
+                    maxWidth: "90%",
+                    // Dynamic height based on number of groups (minimum 200px, add 40px per group)
+                    height: Math.max(200, Object.keys(monthData.groupTotals).length * 40) + 'px'
+                }
+            },
                 React.createElement('canvas', { id: 'groups-bar-chart' })
             )
         ),
