@@ -79,33 +79,324 @@ export async function exportPDF(groups, selectedGroups, reportMonth) {
     doc.text(`Total Time: ${formatDurationHM(monthData.totalSeconds)}`, 20, 50);
     doc.text(`Groups Worked On: ${monthData.groupCount}`, 20, 60);
 
-    // Group breakdown
-    doc.text('Group Breakdown:', 20, 80);
-    let yPos = 90;
+    let yPos = 80;
 
-    Object.entries(monthData.groupTotals)
-        .sort(([, a], [, b]) => b - a)
-        .forEach(([groupName, seconds]) => {
-            doc.text(`${groupName}: ${formatDurationHM(seconds)}`, 25, yPos);
-            yPos += 10;
-        });
+    try {
+        // Capture and add daily hours chart
+        const daysChart = document.getElementById('days-bar-chart');
+        if (daysChart) {
+            const daysCanvas = await window.html2canvas(daysChart, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true
+            });
 
-    // Daily breakdown
-    if (yPos < 200) {
-        doc.text('Daily Breakdown:', 20, yPos + 20);
+            // Add chart title
+            doc.setFontSize(14);
+            doc.text('Daily Hours Chart:', 20, yPos);
+            yPos += 15;
+
+            // Calculate chart dimensions to fit on page
+            const chartWidth = 170; // Max width for PDF
+            const chartHeight = (daysCanvas.height * chartWidth) / daysCanvas.width;
+
+            // Add chart image
+            const daysImgData = daysCanvas.toDataURL('image/png');
+            doc.addImage(daysImgData, 'PNG', 20, yPos, chartWidth, chartHeight);
+            yPos += chartHeight + 20;
+        }
+
+        // Add new page for groups chart if needed
+        if (yPos > 200) {
+            doc.addPage();
+            yPos = 20;
+        }
+
+        // Capture and add groups chart
+        const groupsChart = document.getElementById('groups-bar-chart');
+        if (groupsChart) {
+            const groupsCanvas = await window.html2canvas(groupsChart, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true
+            });
+
+            // Add chart title
+            doc.setFontSize(14);
+            doc.text('Groups Hours Chart:', 20, yPos);
+            yPos += 15;
+
+            // Calculate chart dimensions
+            const chartWidth = 170;
+            const chartHeight = Math.min((groupsCanvas.height * chartWidth) / groupsCanvas.width, 200); // Limit max height
+
+            // Add chart image
+            const groupsImgData = groupsCanvas.toDataURL('image/png');
+            doc.addImage(groupsImgData, 'PNG', 20, yPos, chartWidth, chartHeight);
+            yPos += chartHeight + 20;
+        }
+
+        // Add new page for data breakdown
+        doc.addPage();
+        yPos = 20;
+
+        // Group breakdown table
+        doc.setFontSize(14);
+        doc.text('Group Breakdown:', 20, yPos);
+        yPos += 15;
+
+        // Create group breakdown table
+        const groupData = Object.entries(monthData.groupTotals)
+            .sort(([, a], [, b]) => b - a)
+            .map(([groupName, seconds]) => [
+                groupName,
+                (seconds / 3600).toFixed(2) + 'h'
+            ]);
+
+        if (groupData.length > 0) {
+            // Table headers
+            const groupHeaders = ['Group', 'Hours'];
+            const groupTableConfig = {
+                startY: yPos,
+                head: [groupHeaders],
+                body: groupData,
+                theme: 'grid',
+                styles: { fontSize: 10, cellPadding: 3 },
+                headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 245, 245] },
+                margin: { left: 20, right: 20 }
+            };
+
+            // Use jsPDF autoTable if available, otherwise fallback to simple table
+            if (window.jspdf && window.jspdf.plugin && window.jspdf.plugin.autotable) {
+                doc.autoTable(groupTableConfig);
+                yPos = doc.lastAutoTable.finalY + 20;
+            } else {
+                // Simple table fallback
+                doc.setFontSize(10);
+
+                // Headers
+                let tableX = 20;
+                const colWidths = [120, 50];
+                doc.setFont(undefined, 'bold');
+                doc.text('Group', tableX, yPos);
+                doc.text('Hours', tableX + colWidths[0], yPos);
+                yPos += 10;
+
+                // Draw header line
+                doc.line(20, yPos - 2, 170, yPos - 2);
+                yPos += 5;
+
+                // Data rows
+                doc.setFont(undefined, 'normal');
+                groupData.forEach((row, index) => {
+                    if (yPos > 270) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+
+                    // Alternate row background (simplified)
+                    if (index % 2 === 1) {
+                        doc.setFillColor(245, 245, 245);
+                        doc.rect(20, yPos - 5, 150, 8, 'F');
+                    }
+
+                    doc.text(row[0].substring(0, 40), tableX, yPos); // Allow longer names
+                    doc.text(row[1], tableX + colWidths[0], yPos);
+                    yPos += 8;
+                });
+
+                yPos += 10;
+            }
+        }
+
+        // Daily breakdown table
+        if (yPos > 180) {
+            doc.addPage();
+            yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.text('Daily Breakdown:', 20, yPos);
+        yPos += 15;
+
+        // Create daily breakdown table
+        const dailyData = Object.entries(monthData.days)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, seconds]) => [
+                new Date(date).toLocaleDateString(),
+                new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+                (seconds / 3600).toFixed(2) + 'h'
+            ]);
+
+        if (dailyData.length > 0) {
+            // Table headers
+            const dailyHeaders = ['Date', 'Day', 'Hours'];
+            const dailyTableConfig = {
+                startY: yPos,
+                head: [dailyHeaders],
+                body: dailyData,
+                theme: 'grid',
+                styles: { fontSize: 10, cellPadding: 3 },
+                headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 245, 245] },
+                margin: { left: 20, right: 20 }
+            };
+
+            // Use jsPDF autoTable if available, otherwise fallback to simple table
+            if (window.jspdf && window.jspdf.plugin && window.jspdf.plugin.autotable) {
+                doc.autoTable(dailyTableConfig);
+            } else {
+                // Simple table fallback
+                doc.setFontSize(10);
+
+                // Headers
+                let tableX = 20;
+                const colWidths = [70, 40, 50];
+                doc.setFont(undefined, 'bold');
+                doc.text('Date', tableX, yPos);
+                doc.text('Day', tableX + colWidths[0], yPos);
+                doc.text('Hours', tableX + colWidths[0] + colWidths[1], yPos);
+                yPos += 10;
+
+                // Draw header line
+                doc.line(20, yPos - 2, 170, yPos - 2);
+                yPos += 5;
+
+                // Data rows
+                doc.setFont(undefined, 'normal');
+                dailyData.forEach((row, index) => {
+                    if (yPos > 270) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+
+                    // Alternate row background (simplified)
+                    if (index % 2 === 1) {
+                        doc.setFillColor(245, 245, 245);
+                        doc.rect(20, yPos - 5, 150, 8, 'F');
+                    }
+
+                    doc.text(row[0], tableX, yPos);
+                    doc.text(row[1], tableX + colWidths[0], yPos);
+                    doc.text(row[2], tableX + colWidths[0] + colWidths[1], yPos);
+                    yPos += 8;
+                });
+            }
+        }
+
+    } catch (error) {
+        console.error('Error capturing charts for PDF:', error);
+        // Fallback to text-only PDF if chart capture fails
+        doc.setFontSize(12);
+        doc.text('(Charts could not be included in this export)', 20, yPos);
         yPos += 30;
 
-        Object.entries(monthData.days)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .forEach(([date, seconds]) => {
-                if (yPos > 250) {
+        // Group breakdown table (fallback)
+        doc.setFontSize(14);
+        doc.text('Group Breakdown:', 20, yPos);
+        yPos += 15;
+
+        const groupData = Object.entries(monthData.groupTotals)
+            .sort(([, a], [, b]) => b - a)
+            .map(([groupName, seconds]) => [
+                groupName,
+                (seconds / 3600).toFixed(2) + 'h'
+            ]);
+
+        if (groupData.length > 0) {
+            // Simple table implementation
+            doc.setFontSize(10);
+
+            // Headers
+            let tableX = 20;
+            const colWidths = [120, 50];
+            doc.setFont(undefined, 'bold');
+            doc.text('Group', tableX, yPos);
+            doc.text('Hours', tableX + colWidths[0], yPos);
+            yPos += 10;
+
+            // Draw header line
+            doc.line(20, yPos - 2, 170, yPos - 2);
+            yPos += 5;
+
+            // Data rows
+            doc.setFont(undefined, 'normal');
+            groupData.forEach((row, index) => {
+                if (yPos > 270) {
                     doc.addPage();
                     yPos = 20;
                 }
-                const dateObj = new Date(date);
-                doc.text(`${dateObj.toLocaleDateString()}: ${formatDurationHM(seconds)}`, 25, yPos);
-                yPos += 10;
+
+                // Alternate row background (simplified)
+                if (index % 2 === 1) {
+                    doc.setFillColor(245, 245, 245);
+                    doc.rect(20, yPos - 5, 150, 8, 'F');
+                }
+
+                doc.text(row[0].substring(0, 40), tableX, yPos); // Allow longer names
+                doc.text(row[1], tableX + colWidths[0], yPos);
+                yPos += 8;
             });
+
+            yPos += 10;
+        }
+
+        // Daily breakdown table (fallback)
+        if (yPos > 200) {
+            doc.addPage();
+            yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.text('Daily Breakdown:', 20, yPos);
+        yPos += 15;
+
+        const dailyData = Object.entries(monthData.days)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, seconds]) => [
+                new Date(date).toLocaleDateString(),
+                new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+                (seconds / 3600).toFixed(2) + 'h'
+            ]);
+
+        if (dailyData.length > 0) {
+            // Simple table implementation
+            doc.setFontSize(10);
+
+            // Headers
+            let tableX = 20;
+            const colWidths = [70, 40, 50];
+            doc.setFont(undefined, 'bold');
+            doc.text('Date', tableX, yPos);
+            doc.text('Day', tableX + colWidths[0], yPos);
+            doc.text('Hours', tableX + colWidths[0] + colWidths[1], yPos);
+            yPos += 10;
+
+            // Draw header line
+            doc.line(20, yPos - 2, 170, yPos - 2);
+            yPos += 5;
+
+            // Data rows
+            doc.setFont(undefined, 'normal');
+            dailyData.forEach((row, index) => {
+                if (yPos > 270) {
+                    doc.addPage();
+                    yPos = 20;
+                }
+
+                // Alternate row background (simplified)
+                if (index % 2 === 1) {
+                    doc.setFillColor(245, 245, 245);
+                    doc.rect(20, yPos - 5, 150, 8, 'F');
+                }
+
+                doc.text(row[0], tableX, yPos);
+                doc.text(row[1], tableX + colWidths[0], yPos);
+                doc.text(row[2], tableX + colWidths[0] + colWidths[1], yPos);
+                yPos += 8;
+            });
+        }
     }
 
     doc.save(`time-report-${reportMonth}.pdf`);
