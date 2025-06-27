@@ -120,7 +120,16 @@ h1 {
 .log-item {
     font-size: 0.97rem;
     color: #555;
-    padding: 2px 0;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.log-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 12px;
 }
 
 .empty {
@@ -187,27 +196,32 @@ h1 {
     outline: none;
 }
 
-.delete-log-btn {
-    background: none;
-    border: none;
-    color: #bbb;
+.log-action-btn {
+    background: #f0f0f0;
+    border: 1px solid #e0e0e0;
+    color: #555;
     font-size: 1rem;
-    margin-right: 6px;
     cursor: pointer;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: inline-flex;
+    border-radius: 4px;
+    width: 26px;
+    height: 26px;
+    display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    vertical-align: middle;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    padding: 0;
+}
+
+.log-action-btn:hover {
+    background: #e0e0e0;
+    border-color: #ccc;
 }
 
 .delete-log-btn:hover,
 .delete-log-btn:focus {
     background: #ffe0e0;
     color: #b91c1c;
+    border-color: #f9b2b2 !important;
     outline: none;
 }
 
@@ -750,6 +764,21 @@ h1 {
 }
 
 .footer a:hover {
-    color: #1d4ed8;
-    text-decoration: underline;
+    color: #2563eb;
+}
+
+/* Toggle collapse button styles */
+.toggle-collapse-btn {
+    transition: color 0.15s, transform 0.15s !important;
+    border-radius: 3px !important;
+}
+
+.toggle-collapse-btn:hover {
+    color: #333 !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+    transform: scale(1.1);
+}
+
+.toggle-collapse-btn:active {
+    transform: scale(0.95);
 }
