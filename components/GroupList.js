@@ -148,13 +148,26 @@ export function GroupList({
         },
             'Warning: Overlapping time entries detected!',
             React.createElement('ul', { style: { margin: '10px 0 0 0', paddingLeft: 18, fontWeight: 400, fontSize: '0.98rem' } },
-                overlapping.map((o, i) =>
-                    React.createElement('li', { key: i },
-                        `Group: ${o.first.group} — ` +
-                        `${new Date(o.first.start).toLocaleString()} - ${new Date(o.first.end).toLocaleTimeString()} overlaps with ` +
-                        `Group: ${o.second.group} — `
-                    )
-                )
+                overlapping.map((o, i) => {
+                    const firstStart = new Date(o.first.start);
+                    const firstEnd = new Date(o.first.end);
+                    const secondStart = new Date(o.second.start);
+                    const secondEnd = new Date(o.second.end);
+
+                    const formatDateTime = (date) => {
+                        return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+                    };
+
+                    return React.createElement('li', { key: i, style: { marginBottom: '8px' } },
+                        React.createElement('div', { style: { fontWeight: '500', marginBottom: '4px' } }, 'Overlapping entries:'),
+                        React.createElement('div', { style: { paddingLeft: '16px', marginBottom: '2px' } },
+                            `Group: ${o.first.group} — ${formatDateTime(firstStart)} - ${firstEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                        ),
+                        React.createElement('div', { style: { paddingLeft: '16px' } },
+                            `Group: ${o.second.group} — ${formatDateTime(secondStart)} - ${secondEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                        )
+                    );
+                })
             )
         ),
 

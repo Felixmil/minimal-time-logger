@@ -76,8 +76,10 @@ export function useLocalStorage() {
 
         tryFetch(demoPaths)
             .then(demoData => {
-                if (demoData && demoData.length > 0) {
-                    setGroups(demoData);
+                // Handle both array format and object format with groups property
+                const groups = Array.isArray(demoData) ? demoData : (demoData && demoData.groups ? demoData.groups : []);
+                if (groups && groups.length > 0) {
+                    setGroups(groups);
                     setDemoBanner(false);
                     setDemoMode(true);
                     localStorage.setItem('demoMode', 'true');
