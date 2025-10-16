@@ -13,13 +13,26 @@ export function ReportTab({
 }) {
     const daysChartRef = useRef();
     const groupsChartRef = useRef();
+    const [filteredGroups, setFilteredGroups] = useState([]);
 
-    const activeGroups = groups.filter(g => !g.archived);
+    // Get all groups that have time entries for the selected month (including archived)
+    const groupsWithTimeInMonth = useMemo(() => {
+        const [year, month] = reportMonth.split('-').map(Number);
+        return groups.filter(group => {
+            // Check if group has any logs in the selected month
+            return group.logs && group.logs.some(log => {
+                const logDate = new Date(log.start);
+                return logDate.getFullYear() === year && logDate.getMonth() === month - 1;
+            });
+        });
+    }, [groups, reportMonth]);
 
     // Memoize monthData calculation to prevent unnecessary re-renders
     const monthData = useMemo(() => {
-        return getMonthData(groups, selectedGroups, reportMonth);
-    }, [groups, selectedGroups, reportMonth]);
+        // Filter out groups that are in the filtered state
+        const availableGroups = groups.filter(group => !filteredGroups.includes(group.name));
+        return getMonthData(availableGroups, selectedGroups, reportMonth);
+    }, [groups, selectedGroups, reportMonth, filteredGroups]);
 
     const changeMonth = (offset) => {
         const [year, month] = reportMonth.split('-').map(Number);
@@ -30,9 +43,13 @@ export function ReportTab({
 
     // Render charts when data changes
     useEffect(() => {
-        const daysCtx = document.getElementById('days-bar-chart');
-        const groupsCtx = document.getElementById('groups-bar-chart');
-        if (!daysCtx || !groupsCtx) return;
+        const daysCanvas = document.getElementById('days-bar-chart');
+        const groupsCanvas = document.getElementById('groups-bar-chart');
+        if (!daysCanvas || !groupsCanvas) return;
+
+        // Set willReadFrequently attribute for better performance during PDF export
+        const daysCtx = daysCanvas.getContext('2d', { willReadFrequently: true });
+        const groupsCtx = groupsCanvas.getContext('2d', { willReadFrequently: true });
 
         if (daysChartRef.current) daysChartRef.current.destroy();
         if (groupsChartRef.current) groupsChartRef.current.destroy();
@@ -207,6 +224,21 @@ export function ReportTab({
     }, [monthData, reportMonth]);
 
     return React.createElement('div', null,
+        // Month navigation
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 18 } },
+            React.createElement('button', {
+                className: 'btn tooltip-wide',
+                onClick: () => changeMonth(-1),
+            }, '\u25C0'),
+            React.createElement('span', { style: { fontWeight: 500, fontSize: '1.1rem' } },
+                new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })
+            ),
+            React.createElement('button', {
+                className: 'btn tooltip-wide',
+                onClick: () => changeMonth(1),
+            }, '\u25B6')
+        ),
+
         // Project multi-select UI
         React.createElement('div', { style: { marginBottom: 12 } },
             React.createElement('label', { style: { fontWeight: 500, display: 'block', marginBottom: 8, textAlign: 'center' } }, 'Select Groups:'),
@@ -225,50 +257,48 @@ export function ReportTab({
                 React.createElement('div', {
                     className: (selectedGroups.length === 0 || (selectedGroups.length === 1 && selectedGroups[0] === 'all')
                         ? 'project-tag selected'
-                        : 'project-tag') + ' tooltip-wide',
-                    onClick: () => onSelectedGroupsChange(['all']),
-                    'data-tooltip': 'Show data from all active groups'
+                        : 'project-tag'),
+                    onClick: () => {
+                        onSelectedGroupsChange(['all']);
+                        setFilteredGroups([]); // Clear all filtered groups when selecting "All"
+                    }
                 }, 'All groups'),
 
                 // Individual project options sorted alphabetically
-                [...activeGroups]
+                [...groupsWithTimeInMonth]
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(g =>
                         React.createElement('div', {
                             key: g.name,
-                            className: (selectedGroups.includes(g.name) ? 'project-tag selected' : 'project-tag') + ' tooltip-wide',
+                            className: (selectedGroups.includes(g.name) ? 'project-tag selected' : 'project-tag') +
+                                (g.archived ? ' archived' : '') +
+                                (filteredGroups.includes(g.name) ? ' filtered' : ''),
                             onClick: () => {
-                                const currentSelected = selectedGroups.filter(proj => proj !== 'all');
+                                const isSelected = selectedGroups.includes(g.name);
+                                const isFiltered = filteredGroups.includes(g.name);
 
-                                if (currentSelected.includes(g.name)) {
-                                    onSelectedGroupsChange(currentSelected.filter(proj => proj !== g.name));
+                                if (isFiltered) {
+                                    // Filtered → Untouched: Remove from both filtered and selected
+                                    setFilteredGroups(filteredGroups.filter(name => name !== g.name));
+                                    onSelectedGroupsChange(selectedGroups.filter(proj => proj !== g.name));
+                                } else if (isSelected) {
+                                    // Selected → Filtered: Remove from selected, add to filtered
+                                    onSelectedGroupsChange(selectedGroups.filter(proj => proj !== g.name));
+                                    setFilteredGroups([...filteredGroups, g.name]);
                                 } else {
+                                    // Untouched → Selected: Add to selected
+                                    const currentSelected = selectedGroups.filter(proj => proj !== 'all');
                                     onSelectedGroupsChange([...currentSelected, g.name]);
                                 }
                             },
-                            'data-tooltip': selectedGroups.includes(g.name)
-                                ? `Click to remove ${g.name} from selection`
-                                : `Click to add ${g.name} to selection`
+                            title: filteredGroups.includes(g.name)
+                                ? 'Filtered out - Click to make untouched'
+                                : selectedGroups.includes(g.name)
+                                    ? 'Selected - Click to filter out'
+                                    : 'Untouched - Click to select'
                         }, g.name)
                     )
             )
-        ),
-
-        // Month navigation
-        React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 18 } },
-            React.createElement('button', {
-                className: 'btn tooltip-wide',
-                onClick: () => changeMonth(-1),
-                'data-tooltip': 'View previous month data'
-            }, '\u25C0'),
-            React.createElement('span', { style: { fontWeight: 500, fontSize: '1.1rem' } },
-                new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })
-            ),
-            React.createElement('button', {
-                className: 'btn tooltip-wide',
-                onClick: () => changeMonth(1),
-                'data-tooltip': 'View next month data'
-            }, '\u25B6')
         ),
 
         // Indicators
@@ -309,13 +339,11 @@ export function ReportTab({
         React.createElement('div', { style: { width: '100%', display: 'flex', justifyContent: 'center', marginTop: 32, gap: 16 } },
             React.createElement('button', {
                 className: 'btn tooltip-wide',
-                onClick: onExportPDF,
-                'data-tooltip': 'Create a PDF report with charts and data'
+                onClick: () => onExportPDF(filteredGroups),
             }, 'Export PDF'),
             React.createElement('button', {
                 className: 'btn tooltip-wide',
-                onClick: onExportReportCSV,
-                'data-tooltip': 'Export filtered data as CSV'
+                onClick: () => onExportReportCSV(filteredGroups),
             }, 'Export CSV')
         )
     );

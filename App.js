@@ -39,7 +39,12 @@ function App() {
     } = useLocalStorage();
 
     // Firebase sync
-    const { isLoading: syncLoading, syncError } = useFirebaseSync(user, groups, setGroups);
+    const {
+        isLoading: syncLoading,
+        syncError,
+        importAndSyncData,
+        clearCloudData
+    } = useFirebaseSync(user, groups, setGroups);
 
     // Authentication functions
     const handleSignIn = async () => {
@@ -86,17 +91,13 @@ function App() {
     // State for UI components
     const [infoOpen, setInfoOpen] = useState(false);
     const [tab, setTab] = useState('log');
-    const [reportMonth, setReportMonth] = useState(() => {
-        const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    });
-    const [logMonth, setLogMonth] = useState(() => {
+    const [selectedMonth, setSelectedMonth] = useState(() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
     const [selectedGroups, setSelectedGroups] = useState(['all']);
 
-    // When switching to report tab, default to all active groups if none selected
+    // When switching to report tab, default to all groups (including archived) if none selected
     useEffect(() => {
         if (tab === 'report' && selectedGroups.length === 0) {
             setSelectedGroups(['all']);
@@ -106,7 +107,17 @@ function App() {
 
     // Timer functions
     const startTimer = (idx) => {
+        if (idx < 0 || idx >= groups.length) {
+            console.error('Invalid group index for startTimer:', idx);
+            return;
+        }
+
         const newGroups = [...groups];
+        if (!newGroups[idx]) {
+            console.error('Group not found at index for startTimer:', idx);
+            return;
+        }
+
         // Stop any other running timers
         newGroups.forEach(g => g.running = false);
         newGroups[idx].running = true;
@@ -115,7 +126,17 @@ function App() {
     };
 
     const stopTimer = (idx) => {
+        if (idx < 0 || idx >= groups.length) {
+            console.error('Invalid group index for stopTimer:', idx);
+            return;
+        }
+
         const newGroups = [...groups];
+        if (!newGroups[idx]) {
+            console.error('Group not found at index for stopTimer:', idx);
+            return;
+        }
+
         const group = newGroups[idx];
         if (group.running) {
             const duration = Math.floor((Date.now() - group.startedAt) / 1000);
@@ -156,7 +177,21 @@ function App() {
 
     // Entry management functions
     const addManualEntry = (groupIdx, entry) => {
+        if (groupIdx < 0 || groupIdx >= groups.length) {
+            console.error('Invalid group index:', groupIdx);
+            return;
+        }
+
         const newGroups = [...groups];
+        if (!newGroups[groupIdx]) {
+            console.error('Group not found at index:', groupIdx);
+            return;
+        }
+
+        if (!newGroups[groupIdx].logs) {
+            newGroups[groupIdx].logs = [];
+        }
+
         newGroups[groupIdx].logs.push(entry);
         setGroups(newGroups);
     };
@@ -168,6 +203,21 @@ function App() {
     };
 
     const deleteEntry = (groupIdx, logIdx) => {
+        if (groupIdx < 0 || groupIdx >= groups.length) {
+            console.error('Invalid group index for deleteEntry:', groupIdx);
+            return;
+        }
+
+        if (!groups[groupIdx]) {
+            console.error('Group not found at index for deleteEntry:', groupIdx);
+            return;
+        }
+
+        if (!groups[groupIdx].logs || logIdx < 0 || logIdx >= groups[groupIdx].logs.length) {
+            console.error('Invalid log index for deleteEntry:', logIdx);
+            return;
+        }
+
         if (confirm('Delete this time entry?')) {
             const newGroups = [...groups];
             newGroups[groupIdx].logs.splice(logIdx, 1);
@@ -178,9 +228,37 @@ function App() {
     // Export/Import handlers
     const handleExportJSON = () => exportJSON(groups);
     const handleExportCSV = () => exportCSV(groups);
-    const handleImportJSON = (event) => importJSON(event, setGroups);
-    const handleExportPDF = () => exportPDF(groups, selectedGroups, reportMonth);
-    const handleExportReportCSV = () => exportReportCSV(groups, selectedGroups, reportMonth);
+    const handleImportJSON = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (Array.isArray(imported) && imported.every(g => g.name && Array.isArray(g.logs))) {
+                    // Update local state
+                    setGroups(imported);
+
+                    // If user is signed in, sync the imported data to cloud
+                    if (user) {
+                        console.log('User is signed in, syncing imported data to cloud...');
+                        await importAndSyncData(imported);
+                    } else {
+                        console.log('User not signed in, data imported locally only');
+                    }
+                } else {
+                    alert('Invalid JSON format. Expected an array of groups with name and logs properties.');
+                }
+            } catch (error) {
+                alert('Error parsing JSON file: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Clear the file input
+    };
+    const handleExportPDF = (excludedGroups = []) => exportPDF(groups, selectedGroups, selectedMonth, excludedGroups);
+    const handleExportReportCSV = (excludedGroups = []) => exportReportCSV(groups, selectedGroups, selectedMonth, excludedGroups);
 
     // Info dialog handler
     const toggleInfo = () => setInfoOpen(open => !open);
@@ -201,7 +279,8 @@ function App() {
                 user,
                 onSignIn: handleSignIn,
                 onSignOut: handleSignOut,
-                authLoading
+                authLoading,
+                onClearCloudData: clearCloudData
             }),
 
             // Info dialog
@@ -229,16 +308,16 @@ function App() {
                 onEditEntry: editEntry,
                 onDeleteEntry: deleteEntry,
                 loading,
-                logMonth,
-                onLogMonthChange: setLogMonth
+                logMonth: selectedMonth,
+                onLogMonthChange: setSelectedMonth
             }),
 
             tab === 'report' && React.createElement(ReportTab, {
                 groups,
                 selectedGroups,
                 onSelectedGroupsChange: setSelectedGroups,
-                reportMonth,
-                onReportMonthChange: setReportMonth,
+                reportMonth: selectedMonth,
+                onReportMonthChange: setSelectedMonth,
                 onExportPDF: handleExportPDF,
                 onExportReportCSV: handleExportReportCSV
             })

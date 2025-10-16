@@ -346,13 +346,24 @@ h1 {
     color: #2563eb;
 }
 
+.header-container {
+    margin-bottom: 18px;
+}
+
 .header-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 18px;
-    min-height: 64px;
+    min-height: 32px;
+}
+
+.header-top {
+    margin-bottom: 8px;
+}
+
+.header-bottom {
+    min-height: 48px;
 }
 
 .header-row .burger-menu {
@@ -361,12 +372,29 @@ h1 {
     align-items: center;
 }
 
+.title-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    flex: 1;
+}
+
 .header-row .app-title {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.8rem;
     white-space: nowrap;
-    flex: 1;
     text-align: center;
+    font-weight: 600;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+}
+
+.header-row .info-btn {
+    margin-left: auto;
+    z-index: 2;
 }
 
 /* Menu section styles */
@@ -389,10 +417,6 @@ h1 {
 
 /* Info button styling */
 .btn.info-btn {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
     padding: 8px;
     border-radius: 50%;
     background: none;
@@ -457,6 +481,33 @@ h1 {
 .project.archived {
     opacity: 0.7;
     background: #f8f8f8;
+}
+
+/* Archived project tags in report tab */
+.project-tag.archived {
+    opacity: 0.7;
+    background: #f0f0f0;
+    color: #666;
+    border: 1px dashed #ccc;
+}
+
+.project-tag.archived.selected {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #2563eb;
+}
+
+/* Filtered out project tags */
+.project-tag.filtered {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border-color: #fca5a5;
+    text-decoration: line-through;
+    opacity: 0.8;
+}
+
+.project-tag.filtered:hover {
+    background-color: #fecaca;
 }
 
 .btn.archive-btn {

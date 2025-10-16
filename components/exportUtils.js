@@ -59,11 +59,13 @@ export function importJSON(event, onSuccess) {
 }
 
 // Export report as PDF
-export async function exportPDF(groups, selectedGroups, reportMonth) {
+export async function exportPDF(groups, selectedGroups, reportMonth, excludedGroups = []) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    const monthData = getMonthData(groups, selectedGroups, reportMonth);
+    // Filter out groups that are in the excluded state
+    const availableGroups = groups.filter(group => !excludedGroups.includes(group.name));
+    const monthData = getMonthData(availableGroups, selectedGroups, reportMonth);
     const monthName = new Date(reportMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' });
 
     // Title
@@ -285,6 +287,119 @@ export async function exportPDF(groups, selectedGroups, reportMonth) {
             }
         }
 
+        // Detailed chronological table
+        if (yPos > 180) {
+            doc.addPage();
+            yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.text('Detailed Time Entries:', 20, yPos);
+        yPos += 15;
+
+        // Create detailed chronological table with grouped entries
+        const entryMap = new Map(); // Use Map to group by date + group
+
+        availableGroups.forEach(group => {
+            if (group.logs) {
+                group.logs.forEach(log => {
+                    const logDate = new Date(log.start);
+                    const [year, month] = reportMonth.split('-').map(Number);
+
+                    // Check if log is in the selected month
+                    if (logDate.getFullYear() === year && logDate.getMonth() === month - 1) {
+                        const dateKey = logDate.toDateString(); // Use date string as key
+                        const groupKey = `${dateKey}_${group.name}`;
+
+                        if (entryMap.has(groupKey)) {
+                            // Sum with existing entry for same date and group
+                            const existing = entryMap.get(groupKey);
+                            existing.time += log.duration;
+                        } else {
+                            // Create new entry
+                            entryMap.set(groupKey, {
+                                date: logDate,
+                                group: group.name,
+                                time: log.duration,
+                                start: log.start,
+                                end: log.end
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        // Convert map to array and sort chronologically by date
+        const detailedEntries = Array.from(entryMap.values()).sort((a, b) => {
+            const dateCompare = a.date.getTime() - b.date.getTime();
+            if (dateCompare !== 0) return dateCompare;
+            return a.group.localeCompare(b.group); // Secondary sort by group name
+        });
+
+        if (detailedEntries.length > 0) {
+            // Prepare table data
+            const detailedData = detailedEntries.map(entry => [
+                entry.date.toLocaleDateString(),
+                entry.group,
+                formatDurationHM(entry.time)
+            ]);
+
+            // Table headers
+            const detailedHeaders = ['Date', 'Group', 'Duration'];
+            const detailedTableConfig = {
+                startY: yPos,
+                head: [detailedHeaders],
+                body: detailedData,
+                theme: 'grid',
+                styles: { fontSize: 9, cellPadding: 2 },
+                headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 245, 245] },
+                margin: { left: 20, right: 20 }
+            };
+
+            // Use jsPDF autoTable if available, otherwise fallback to simple table
+            if (window.jspdf && window.jspdf.plugin && window.jspdf.plugin.autotable) {
+                doc.autoTable(detailedTableConfig);
+            } else {
+                // Simple table fallback
+                doc.setFontSize(9);
+
+                // Headers
+                let tableX = 20;
+                const colWidths = [50, 80, 40];
+                doc.setFont(undefined, 'bold');
+                doc.text('Date', tableX, yPos);
+                doc.text('Group', tableX + colWidths[0], yPos);
+                doc.text('Duration', tableX + colWidths[0] + colWidths[1], yPos);
+                yPos += 10;
+
+                // Draw header line
+                doc.line(20, yPos - 2, 190, yPos - 2);
+                yPos += 5;
+
+                // Data rows
+                doc.setFont(undefined, 'normal');
+                detailedData.forEach((row, index) => {
+                    if (yPos > 270) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+
+                    // Alternate row background (simplified)
+                    if (index % 2 === 1) {
+                        doc.setFillColor(245, 245, 245);
+                        doc.rect(20, yPos - 5, 170, 8, 'F');
+                    }
+
+                    doc.text(row[0], tableX, yPos);
+                    doc.text(row[1].substring(0, 25), tableX + colWidths[0], yPos); // Truncate long group names
+                    doc.text(row[2], tableX + colWidths[0] + colWidths[1], yPos);
+                    yPos += 8;
+                });
+            }
+        }
+
     } catch (error) {
         console.error('Error capturing charts for PDF:', error);
         // Fallback to text-only PDF if chart capture fails
@@ -403,8 +518,10 @@ export async function exportPDF(groups, selectedGroups, reportMonth) {
 }
 
 // Export report data as CSV
-export function exportReportCSV(groups, selectedGroups, reportMonth) {
-    const monthData = getMonthData(groups, selectedGroups, reportMonth);
+export function exportReportCSV(groups, selectedGroups, reportMonth, excludedGroups = []) {
+    // Filter out groups that are in the excluded state
+    const availableGroups = groups.filter(group => !excludedGroups.includes(group.name));
+    const monthData = getMonthData(availableGroups, selectedGroups, reportMonth);
     const [year, month] = reportMonth.split('-').map(Number);
     const monthStart = new Date(year, month - 1, 1);
     const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);

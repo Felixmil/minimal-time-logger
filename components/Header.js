@@ -10,7 +10,8 @@ export function Header({
     user,
     onSignIn,
     onSignOut,
-    authLoading
+    authLoading,
+    onClearCloudData
 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const fileInputRef = useRef();
@@ -28,7 +29,6 @@ export function Header({
                 className: 'burger-icon',
                 onClick: toggleMenu,
                 'aria-label': 'Open menu',
-                'data-tooltip': 'Export/Import options',
                 type: 'button'
             },
                 React.createElement('span'),
@@ -53,32 +53,45 @@ export function Header({
                         onChange: e => { onImportJSON(e); closeMenu(); }
                     })
                 ),
-                React.createElement('button', {
-                    onClick: () => { onExportCSV(); closeMenu(); },
-                    'data-tooltip': 'Export time data as CSV file'
-                }, 'Export CSV')
+                user && React.createElement('button', {
+                    onClick: async () => {
+                        if (confirm('Are you sure you want to clear all data (both cloud and local)? This action cannot be undone.')) {
+                            await onClearCloudData();
+                            closeMenu();
+                        }
+                    },
+                    'data-tooltip': 'Delete all data from cloud storage and local storage',
+                    style: { color: '#dc3545' }
+                }, 'Clear All Data')
             )
         )
     );
 
 
-    return React.createElement('div', { className: 'header-row' },
-        menuSection,
-        React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger"),
-        React.createElement('div', { className: 'header-actions' },
-            React.createElement(AuthButton, {
-                user,
-                onSignIn,
-                onSignOut,
-                loading: authLoading
-            }),
-            React.createElement('button', {
-                className: 'btn info-btn',
-                onClick: onToggleInfo,
-                'aria-label': 'Show app information',
-                'data-tooltip': 'About this app',
-                type: 'button'
-            }, React.createElement('i', { className: 'bi bi-info-circle', style: { fontSize: '20px', color: '#374151' } }))
+    return React.createElement('div', { className: 'header-container' },
+        // First row: Burger menu and Sign-in button
+        React.createElement('div', { className: 'header-row header-top' },
+            menuSection,
+            React.createElement('div', { className: 'header-actions' },
+                React.createElement(AuthButton, {
+                    user,
+                    onSignIn,
+                    onSignOut,
+                    loading: authLoading
+                })
+            )
+        ),
+        // Second row: App title and Info button
+        React.createElement('div', { className: 'header-row header-bottom' },
+            React.createElement('div', { className: 'title-section' },
+                React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger"),
+                React.createElement('button', {
+                    className: 'btn info-btn',
+                    onClick: onToggleInfo,
+                    'aria-label': 'Show app information',
+                    type: 'button'
+                }, React.createElement('i', { className: 'bi bi-info-circle', style: { fontSize: '20px', color: '#374151' } }))
+            )
         )
     );
 } 

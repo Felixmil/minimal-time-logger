@@ -11,7 +11,6 @@ export function TabBar({ activeTab, onTabChange }) {
                 key: tab.id,
                 className: 'tab-btn' + (activeTab === tab.id ? ' active' : ''),
                 onClick: () => onTabChange(tab.id),
-                'data-tooltip': tab.tooltip
             }, tab.label)
         )
     );

@@ -22,6 +22,24 @@ export function GroupList({
     const [manualForm, setManualForm] = useState({ date: '', start: '', end: '' });
     const [editingLog, setEditingLog] = useState(null);
     const [editForm, setEditForm] = useState({ date: '', start: '', end: '' });
+
+    // Helper function to get the correct group index
+    const getGroupIndex = (group) => {
+        const index = groups.findIndex(g => g.name === group.name);
+        if (index === -1) {
+            console.error('Group not found in getGroupIndex:', {
+                groupName: group.name,
+                availableGroups: groups.map(g => g.name),
+                groupObject: group
+            });
+        }
+        return index;
+    };
+
+    // Create a mapping from activeGroups to original groups
+    const getOriginalGroupIndex = (activeGroup) => {
+        return groups.findIndex(g => g.name === activeGroup.name);
+    };
     const [archivedOpen, setArchivedOpen] = useState(false);
     const [collapsedGroups, setCollapsedGroups] = useState(new Set());
 
@@ -46,9 +64,21 @@ export function GroupList({
         return groupsWithEntriesInMonth;
     };
 
+    // Filter archived groups to show all archived groups, but filter their entries by month
+    const getFilteredArchivedGroups = () => {
+        const archivedGroups = groups.filter(g => g.archived);
+        const archivedGroupsWithFilteredEntries = archivedGroups.map(group => ({
+            ...group,
+            logs: filterLogsByMonth(group.logs)
+        }));
+
+        // Show all archived groups, even if they have no entries in the selected month
+        return archivedGroupsWithFilteredEntries;
+    };
+
     const filteredGroups = getFilteredGroups();
     const activeGroups = filteredGroups;
-    const archivedGroups = groups.filter(g => g.archived);
+    const archivedGroups = getFilteredArchivedGroups();
     const overlapping = findOverlappingLogs(filteredGroups);
 
     const addGroup = (e) => {
@@ -99,6 +129,21 @@ export function GroupList({
     };
 
     const openEditForm = (groupIdx, logIdx) => {
+        if (groupIdx < 0 || groupIdx >= groups.length) {
+            console.error('Invalid group index for openEditForm:', groupIdx);
+            return;
+        }
+
+        if (!groups[groupIdx]) {
+            console.error('Group not found at index for openEditForm:', groupIdx);
+            return;
+        }
+
+        if (!groups[groupIdx].logs || logIdx < 0 || logIdx >= groups[groupIdx].logs.length) {
+            console.error('Invalid log index for openEditForm:', logIdx);
+            return;
+        }
+
         const log = groups[groupIdx].logs[logIdx];
         const startDate = new Date(log.start);
         const endDate = new Date(log.end);
@@ -211,7 +256,6 @@ export function GroupList({
             React.createElement('button', {
                 className: 'btn tooltip-wide',
                 onClick: () => changeMonth(-1),
-                'data-tooltip': 'View previous month entries'
             }, '\u25C0'),
             React.createElement('span', { style: { fontWeight: 500, fontSize: '1.1rem' } },
                 new Date(logMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })
@@ -219,7 +263,6 @@ export function GroupList({
             React.createElement('button', {
                 className: 'btn tooltip-wide',
                 onClick: () => changeMonth(1),
-                'data-tooltip': 'View next month entries'
             }, '\u25B6')
         ),
 
@@ -234,7 +277,6 @@ export function GroupList({
             React.createElement('button', {
                 type: 'submit',
                 className: 'btn',
-                'data-tooltip': 'Create a new group'
             }, 'Add')
         ),
 
@@ -250,13 +292,11 @@ export function GroupList({
             React.createElement('button', {
                 className: 'btn',
                 onClick: foldAllGroups,
-                'data-tooltip': 'Collapse all groups to hide their time entries',
                 style: { fontSize: '0.9rem', padding: '6px 14px' }
             }, 'Fold All'),
             React.createElement('button', {
                 className: 'btn',
                 onClick: unfoldAllGroups,
-                'data-tooltip': 'Expand all groups to show their time entries',
                 style: { fontSize: '0.9rem', padding: '6px 14px' }
             }, 'Unfold All')
         ),
@@ -273,7 +313,6 @@ export function GroupList({
                     React.createElement('button', {
                         className: 'btn toggle-collapse-btn',
                         onClick: () => toggleGroupCollapse(g.name),
-                        'data-tooltip': collapsedGroups.has(g.name) ? 'Expand group to show time entries' : 'Collapse group to hide time entries',
                         style: {
                             background: 'none',
                             border: 'none',
@@ -291,7 +330,13 @@ export function GroupList({
                     React.createElement('span', { className: 'project-name', style: { flex: 1 } }, g.name),
                     React.createElement('button', {
                         className: 'btn play-btn' + (g.running ? ' running' : ''),
-                        onClick: g.running ? () => onStopTimer(groups.indexOf(g)) : () => onStartTimer(groups.indexOf(g)),
+                        onClick: g.running ? () => {
+                            const actualIndex = getOriginalGroupIndex(g);
+                            onStopTimer(actualIndex);
+                        } : () => {
+                            const actualIndex = getOriginalGroupIndex(g);
+                            onStartTimer(actualIndex);
+                        },
                         'data-tooltip': g.running ? 'Stop the timer' : 'Start timing for this group',
                         title: g.running ? 'Stop timer' : 'Start timer'
                     },
@@ -301,14 +346,17 @@ export function GroupList({
                     ),
                     React.createElement('button', {
                         className: 'btn add-entry',
-                        onClick: () => openManualForm(groups.indexOf(g)),
+                        onClick: () => {
+                            const actualIndex = getOriginalGroupIndex(g);
+                            openManualForm(actualIndex);
+                        },
                         'data-tooltip': 'Add a manual time entry',
                         title: 'Add manual entry',
                         style: { marginLeft: 4 }
                     }, React.createElement('i', { className: 'bi bi-plus', style: { fontSize: '20px', color: '#374151' } })),
                     React.createElement('button', {
                         className: 'btn archive-btn-square',
-                        onClick: () => onArchiveGroup(groups.indexOf(g)),
+                        onClick: () => onArchiveGroup(getOriginalGroupIndex(g)),
                         'data-tooltip': 'Archive this group',
                         title: 'Archive group',
                         style: { marginLeft: 4 }
@@ -317,7 +365,7 @@ export function GroupList({
                     ),
                     React.createElement('button', {
                         className: 'btn delete-btn-square',
-                        onClick: () => onDeleteGroup(groups.indexOf(g)),
+                        onClick: () => onDeleteGroup(getOriginalGroupIndex(g)),
                         'data-tooltip': 'Delete this group',
                         title: 'Delete group',
                         style: { marginLeft: 4 }
@@ -327,7 +375,7 @@ export function GroupList({
                 ),
 
                 // Manual entry form
-                !collapsedGroups.has(g.name) && manualIdx === groups.indexOf(g) && React.createElement('form', {
+                !collapsedGroups.has(g.name) && manualIdx === getOriginalGroupIndex(g) && React.createElement('form', {
                     onSubmit: submitManualEntry,
                     style: { display: 'flex', gap: 6, margin: '8px 0', alignItems: 'center', justifyContent: 'center' }
                 },
@@ -360,20 +408,18 @@ export function GroupList({
                     React.createElement('button', {
                         type: 'submit',
                         className: 'btn tooltip-wide',
-                        'data-tooltip': 'Save this time entry to the project'
                     }, 'Save'),
                     React.createElement('button', {
                         type: 'button',
                         className: 'btn tooltip-wide',
                         onClick: closeManualForm,
-                        'data-tooltip': 'Cancel without saving this entry'
                     }, 'Cancel')
                 ),
 
                 // Time logs
                 !collapsedGroups.has(g.name) && g.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
                     g.logs.map((log, i) => {
-                        if (editingLog && editingLog.groupIdx === groups.indexOf(g) && editingLog.logIdx === i) {
+                        if (editingLog && editingLog.groupIdx === getOriginalGroupIndex(g) && editingLog.logIdx === i) {
                             return React.createElement('li', { key: `edit-${i}`, className: 'log-item indented' },
                                 React.createElement('form', {
                                     onSubmit: submitLogEdit,
@@ -408,13 +454,11 @@ export function GroupList({
                                     React.createElement('button', {
                                         type: 'submit',
                                         className: 'btn tooltip-wide',
-                                        'data-tooltip': 'Save changes to this entry'
                                     }, 'Save'),
                                     React.createElement('button', {
                                         type: 'button',
                                         className: 'btn tooltip-wide',
                                         onClick: closeEditForm,
-                                        'data-tooltip': 'Cancel editing'
                                     }, 'Cancel')
                                 )
                             );
@@ -432,15 +476,13 @@ export function GroupList({
                             React.createElement('button', {
                                 className: 'log-action-btn edit-log-btn',
                                 title: 'Edit entry',
-                                'data-tooltip': 'Edit this time entry',
-                                onClick: () => openEditForm(groups.indexOf(g), i),
+                                onClick: () => openEditForm(getOriginalGroupIndex(g), i),
                                 style: { marginLeft: '8px' }
                             }, '✎'),
                             React.createElement('button', {
                                 className: 'log-action-btn delete-log-btn',
                                 title: 'Delete entry',
-                                'data-tooltip': 'Delete this time entry',
-                                onClick: () => onDeleteEntry(groups.indexOf(g), i)
+                                onClick: () => onDeleteEntry(getOriginalGroupIndex(g), i)
                             }, '\u00D7')
                         );
                     })
@@ -454,7 +496,6 @@ export function GroupList({
                 className: 'btn',
                 style: { width: '100%', background: '#f3f3f3', color: '#888', marginBottom: 8 },
                 onClick: () => setArchivedOpen(open => !open),
-                'data-tooltip': archivedOpen ? 'Hide archived groups' : 'Show your archived groups'
             },
                 archivedOpen ? 'Hide Archived Groups' : `Show Archived Groups (${archivedGroups.length})`
             ),
@@ -464,7 +505,7 @@ export function GroupList({
                         React.createElement('span', { className: 'project-name' }, g.name),
                         React.createElement('button', {
                             className: 'btn unarchive-btn',
-                            onClick: () => onUnarchiveGroup(groups.indexOf(g)),
+                            onClick: () => onUnarchiveGroup(getOriginalGroupIndex(g)),
                             title: 'Unarchive group',
                             'data-tooltip': 'Restore this group',
                             style: { marginLeft: 4 }
@@ -473,7 +514,7 @@ export function GroupList({
                         ),
                         React.createElement('button', {
                             className: 'btn delete-btn-square',
-                            onClick: () => onDeleteGroup(groups.indexOf(g)),
+                            onClick: () => onDeleteGroup(getOriginalGroupIndex(g)),
                             'data-tooltip': 'Delete this group',
                             title: 'Delete group',
                             style: { marginLeft: 4 }
@@ -481,32 +522,18 @@ export function GroupList({
                             React.createElement('i', { className: 'bi bi-trash', style: { fontSize: '20px', color: '#374151' } })
                         )
                     ),
-                    g.logs.length > 0 && React.createElement('ul', { className: 'log-list' },
-                        g.logs.map((log, i) => {
-                            const startDate = new Date(log.start);
-                            const endDate = new Date(log.end);
-                            const sameDay = startDate.toDateString() === endDate.toDateString();
-                            const logText = sameDay
-                                ? `${startDate.toLocaleDateString([], { dateStyle: 'short' })} ${formatTime(startDate)} - ${formatTime(endDate)} (${formatDurationNoSeconds(log.duration)})`
-                                : `${startDate.toLocaleString([], { dateStyle: 'short', timeStyle: 'short', hour12: false })} - ${endDate.toLocaleString([], { dateStyle: 'short', timeStyle: 'short', hour12: false })} (${formatDurationNoSeconds(log.duration)})`;
-
-                            return React.createElement('li', { key: i, className: 'log-item indented', style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                                React.createElement('span', { className: 'log-text' }, logText),
-                                React.createElement('button', {
-                                    className: 'log-action-btn edit-log-btn',
-                                    title: 'Edit entry',
-                                    'data-tooltip': 'Edit this time entry',
-                                    onClick: () => openEditForm(groups.indexOf(g), i),
-                                    style: { marginLeft: '8px' }
-                                }, '✎'),
-                                React.createElement('button', {
-                                    className: 'log-action-btn delete-log-btn',
-                                    title: 'Delete entry',
-                                    'data-tooltip': 'Delete this time entry',
-                                    onClick: () => onDeleteEntry(groups.indexOf(g), i)
-                                }, '\u00D7')
-                            );
-                        })
+                    g.logs.length > 0 && React.createElement('div', {
+                        className: 'log-list',
+                        style: {
+                            padding: '8px 12px',
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '4px',
+                            margin: '4px 0',
+                            fontSize: '0.9rem',
+                            color: '#6c757d'
+                        }
+                    },
+                        `(${g.logs.length} ${g.logs.length === 1 ? 'entry' : 'entries'} in ${new Date(logMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })})`
                     )
                 )
             )

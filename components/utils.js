@@ -76,10 +76,10 @@ export function getMonthData(groups, selectedGroups, reportMonth) {
     const selectedProjs = selectedGroups || ['all'];
     const isAllSelected = selectedProjs.length === 0 || (selectedProjs.length === 1 && selectedProjs[0] === 'all');
 
-    // Filter groups based on selection
+    // Filter groups based on selection (include archived groups)
     const filteredGroups = isAllSelected
-        ? groups.filter(g => !g.archived)
-        : groups.filter(g => !g.archived && selectedProjs.includes(g.name));
+        ? groups
+        : groups.filter(g => selectedProjs.includes(g.name));
 
     let totalSeconds = 0;
     const days = {};
