@@ -38,6 +38,7 @@ export function useLocalStorage() {
     }, []);
 
     // Save data to localStorage on groups change
+    // Note: Firebase sync will handle cloud storage when user is authenticated
     useEffect(() => {
         if (!loading) {
             localStorage.setItem('groups', JSON.stringify(groups));

@@ -13,12 +13,16 @@ import { Footer } from './components/Footer.js';
 // Import hooks
 import { useTimer } from './components/hooks/useTimer.js';
 import { useLocalStorage } from './components/hooks/useLocalStorage.js';
+import { useFirebaseSync } from './components/hooks/useFirebaseSync.js';
 
 
 // Import utilities
 import { exportJSON, exportCSV, importJSON, exportPDF, exportReportCSV } from './components/exportUtils.js';
 
 function App() {
+    // Authentication state
+    const [user, setUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
 
     // Use custom hooks
     const { forceUpdate } = useTimer();
@@ -33,6 +37,51 @@ function App() {
         enterDemoMode,
         exitDemoMode
     } = useLocalStorage();
+
+    // Firebase sync
+    const { isLoading: syncLoading, syncError } = useFirebaseSync(user, groups, setGroups);
+
+    // Authentication functions
+    const handleSignIn = async () => {
+        if (!window.firebaseAuth) {
+            alert('Firebase not configured. Please set up Firebase to enable sign-in.');
+            return;
+        }
+
+        try {
+            const provider = new window.firebase.auth.GoogleAuthProvider();
+            await window.firebaseAuth.signInWithPopup(provider);
+        } catch (error) {
+            console.error('Sign in error:', error);
+            throw error;
+        }
+    };
+
+    const handleSignOut = async () => {
+        if (!window.firebaseAuth) return;
+
+        try {
+            await window.firebaseAuth.signOut();
+        } catch (error) {
+            console.error('Sign out error:', error);
+            throw error;
+        }
+    };
+
+    // Listen for authentication state changes
+    useEffect(() => {
+        if (!window.firebaseAuth) {
+            setAuthLoading(false);
+            return;
+        }
+
+        const unsubscribe = window.firebaseAuth.onAuthStateChanged((user) => {
+            setUser(user);
+            setAuthLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     // State for UI components
     const [infoOpen, setInfoOpen] = useState(false);
@@ -148,7 +197,11 @@ function App() {
                 onExportJSON: handleExportJSON,
                 onImportJSON: handleImportJSON,
                 onExportCSV: handleExportCSV,
-                onToggleInfo: toggleInfo
+                onToggleInfo: toggleInfo,
+                user,
+                onSignIn: handleSignIn,
+                onSignOut: handleSignOut,
+                authLoading
             }),
 
             // Info dialog

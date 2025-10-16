@@ -1,11 +1,16 @@
 // Header component with menu and info button
 const { useState, useRef } = React;
+import { AuthButton } from './AuthButton.js';
 
 export function Header({
     onExportJSON,
     onImportJSON,
     onExportCSV,
-    onToggleInfo
+    onToggleInfo,
+    user,
+    onSignIn,
+    onSignOut,
+    authLoading
 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const fileInputRef = useRef();
@@ -60,12 +65,20 @@ export function Header({
     return React.createElement('div', { className: 'header-row' },
         menuSection,
         React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger"),
-        React.createElement('button', {
-            className: 'btn info-btn',
-            onClick: onToggleInfo,
-            'aria-label': 'Show app information',
-            'data-tooltip': 'About this app',
-            type: 'button'
-        }, React.createElement('i', { className: 'bi bi-info-circle', style: { fontSize: '20px', color: '#374151' } }))
+        React.createElement('div', { className: 'header-actions' },
+            React.createElement(AuthButton, {
+                user,
+                onSignIn,
+                onSignOut,
+                loading: authLoading
+            }),
+            React.createElement('button', {
+                className: 'btn info-btn',
+                onClick: onToggleInfo,
+                'aria-label': 'Show app information',
+                'data-tooltip': 'About this app',
+                type: 'button'
+            }, React.createElement('i', { className: 'bi bi-info-circle', style: { fontSize: '20px', color: '#374151' } }))
+        )
     );
 } 

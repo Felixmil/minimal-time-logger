@@ -349,18 +349,13 @@ h1 {
 .header-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0;
-    position: relative;
+    justify-content: space-between;
+    gap: 12px;
     margin-bottom: 18px;
     min-height: 64px;
 }
 
 .header-row .burger-menu {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
     height: 32px;
     display: flex;
     align-items: center;
@@ -368,11 +363,10 @@ h1 {
 
 .header-row .app-title {
     margin: 0;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     font-size: 1.2rem;
     white-space: nowrap;
+    flex: 1;
+    text-align: center;
 }
 
 /* Menu section styles */
@@ -383,8 +377,13 @@ h1 {
     flex: 1;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .header-row .info-btn {
-    margin-left: auto;
     flex-shrink: 0;
 }
 
@@ -791,4 +790,55 @@ h1 {
 
 .toggle-collapse-btn:active {
     transform: scale(0.95);
+}
+
+/* Authentication Styles */
+.auth-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.auth-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.user-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+}
+
+.user-name {
+    font-size: 0.9rem;
+    color: #333;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
