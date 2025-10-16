@@ -1,14 +1,19 @@
 // Header component with menu and info button
 const { useState, useRef } = React;
 
-export function Header({ onExportJSON, onImportJSON, onExportCSV, onToggleInfo }) {
+export function Header({
+    onExportJSON,
+    onImportJSON,
+    onExportCSV,
+    onToggleInfo
+}) {
     const [menuOpen, setMenuOpen] = useState(false);
     const fileInputRef = useRef();
 
     const toggleMenu = () => setMenuOpen(open => !open);
     const closeMenu = () => setMenuOpen(false);
 
-    return React.createElement('div', { className: 'header-row' },
+    const menuSection = React.createElement('div', { className: 'menu-section' },
         React.createElement('div', {
             className: menuOpen ? 'burger-menu open' : 'burger-menu',
             tabIndex: 0,
@@ -48,7 +53,12 @@ export function Header({ onExportJSON, onImportJSON, onExportCSV, onToggleInfo }
                     'data-tooltip': 'Export time data as CSV file'
                 }, 'Export CSV')
             )
-        ),
+        )
+    );
+
+
+    return React.createElement('div', { className: 'header-row' },
+        menuSection,
         React.createElement('h1', { className: 'app-title' }, "Felix's Minimal Time Logger"),
         React.createElement('button', {
             className: 'btn info-btn',

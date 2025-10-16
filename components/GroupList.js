@@ -13,7 +13,9 @@ export function GroupList({
     onAddManualEntry,
     onEditEntry,
     onDeleteEntry,
-    loading
+    loading,
+    logMonth,
+    onLogMonthChange
 }) {
     const [newGroup, setNewGroup] = useState('');
     const [manualIdx, setManualIdx] = useState(null);
@@ -23,9 +25,31 @@ export function GroupList({
     const [archivedOpen, setArchivedOpen] = useState(false);
     const [collapsedGroups, setCollapsedGroups] = useState(new Set());
 
-    const activeGroups = groups.filter(g => !g.archived);
+    // Filter logs by month
+    const filterLogsByMonth = (logs) => {
+        const [year, month] = logMonth.split('-').map(Number);
+        return logs.filter(log => {
+            const logDate = new Date(log.start);
+            return logDate.getFullYear() === year && logDate.getMonth() === month - 1;
+        });
+    };
+
+    // Filter groups to show only non-archived groups, but include all groups that have entries in the selected month
+    const getFilteredGroups = () => {
+        const nonArchivedGroups = groups.filter(g => !g.archived);
+        const groupsWithEntriesInMonth = nonArchivedGroups.map(group => ({
+            ...group,
+            logs: filterLogsByMonth(group.logs)
+        }));
+
+        // Show all non-archived groups, even if they have no entries in the selected month
+        return groupsWithEntriesInMonth;
+    };
+
+    const filteredGroups = getFilteredGroups();
+    const activeGroups = filteredGroups;
     const archivedGroups = groups.filter(g => g.archived);
-    const overlapping = findOverlappingLogs(groups);
+    const overlapping = findOverlappingLogs(filteredGroups);
 
     const addGroup = (e) => {
         e.preventDefault();
@@ -37,8 +61,12 @@ export function GroupList({
 
     const openManualForm = (idx) => {
         setManualIdx(idx);
-        const today = new Date().toISOString().split('T')[0];
-        setManualForm({ date: today, start: '', end: '' });
+        // Default to first day of selected month, or today if it's the current month
+        const [year, month] = logMonth.split('-').map(Number);
+        const today = new Date();
+        const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month - 1;
+        const defaultDate = isCurrentMonth ? today.toISOString().split('T')[0] : `${year}-${String(month).padStart(2, '0')}-01`;
+        setManualForm({ date: defaultDate, start: '', end: '' });
     };
 
     const closeManualForm = () => {
@@ -132,6 +160,13 @@ export function GroupList({
         setCollapsedGroups(new Set());
     };
 
+    const changeMonth = (offset) => {
+        const [year, month] = logMonth.split('-').map(Number);
+        const newDate = new Date(year, month - 1 + offset, 1);
+        const newMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
+        onLogMonthChange(newMonth);
+    };
+
     return React.createElement('div', null,
         // Overlapping warning
         overlapping.length > 0 && React.createElement('div', {
@@ -169,6 +204,23 @@ export function GroupList({
                     );
                 })
             )
+        ),
+
+        // Month navigation
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 18 } },
+            React.createElement('button', {
+                className: 'btn tooltip-wide',
+                onClick: () => changeMonth(-1),
+                'data-tooltip': 'View previous month entries'
+            }, '\u25C0'),
+            React.createElement('span', { style: { fontWeight: 500, fontSize: '1.1rem' } },
+                new Date(logMonth + '-01').toLocaleString(undefined, { month: 'long', year: 'numeric' })
+            ),
+            React.createElement('button', {
+                className: 'btn tooltip-wide',
+                onClick: () => changeMonth(1),
+                'data-tooltip': 'View next month entries'
+            }, '\u25B6')
         ),
 
         // Add group form

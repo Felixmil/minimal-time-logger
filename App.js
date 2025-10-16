@@ -14,10 +14,12 @@ import { Footer } from './components/Footer.js';
 import { useTimer } from './components/hooks/useTimer.js';
 import { useLocalStorage } from './components/hooks/useLocalStorage.js';
 
+
 // Import utilities
 import { exportJSON, exportCSV, importJSON, exportPDF, exportReportCSV } from './components/exportUtils.js';
 
 function App() {
+
     // Use custom hooks
     const { forceUpdate } = useTimer();
     const {
@@ -39,6 +41,10 @@ function App() {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
+    const [logMonth, setLogMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
     const [selectedGroups, setSelectedGroups] = useState(['all']);
 
     // When switching to report tab, default to all active groups if none selected
@@ -47,6 +53,7 @@ function App() {
             setSelectedGroups(['all']);
         }
     }, [tab, selectedGroups]);
+
 
     // Timer functions
     const startTimer = (idx) => {
@@ -129,6 +136,7 @@ function App() {
     // Info dialog handler
     const toggleInfo = () => setInfoOpen(open => !open);
 
+
     return (
         React.createElement('div', { className: 'container' },
             // Demo banners
@@ -167,7 +175,9 @@ function App() {
                 onAddManualEntry: addManualEntry,
                 onEditEntry: editEntry,
                 onDeleteEntry: deleteEntry,
-                loading
+                loading,
+                logMonth,
+                onLogMonthChange: setLogMonth
             }),
 
             tab === 'report' && React.createElement(ReportTab, {

@@ -367,15 +367,25 @@ h1 {
 }
 
 .header-row .app-title {
-    flex: 1;
-    text-align: center;
-    font-size: 2rem;
-    font-weight: 700;
     margin: 0;
-    letter-spacing: 0.01em;
-    line-height: 1.2;
-    padding-right: 36px;
-    /* Make space for the info button */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.2rem;
+    white-space: nowrap;
+}
+
+/* Menu section styles */
+.menu-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.header-row .info-btn {
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 /* Info button styling */
